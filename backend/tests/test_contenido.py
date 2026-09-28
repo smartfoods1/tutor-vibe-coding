@@ -296,3 +296,65 @@ def test_textos_legales_sin_newsletter_no_dejan_huecos():
         texto = contenido.reemplazar_marcadores(contenido.leer(raiz, nombre), _Conf(autor_nombre="Ana"))
         _, cuerpo = contenido.separar_frontmatter(texto)
         assert "****" not in cuerpo and " por ." not in cuerpo and "{{" not in cuerpo, nombre
+
+
+# --- Bloques de la aprobación manual ({{#APROBACION}}...{{/APROBACION}}) ---
+
+
+def _con_aprobacion(aprobacion_manual: bool, newsletter_nombre: str = ""):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(autor_nombre="Ana", newsletter_nombre=newsletter_nombre, aprobacion_manual=aprobacion_manual)
+
+
+def test_bloque_de_aprobacion_se_muestra_solo_con_aprobacion_manual():
+    texto = "Antes.\n{{#APROBACION}}\n- {{AUTOR}} aprueba cada inscripción.\n{{/APROBACION}}\nDespués."
+
+    assert contenido.reemplazar_marcadores(texto, _con_aprobacion(True)) == (
+        "Antes.\n- Ana aprueba cada inscripción.\nDespués."
+    )
+    assert contenido.reemplazar_marcadores(texto, _con_aprobacion(False)) == "Antes.\nDespués."
+    assert contenido.reemplazar_marcadores(texto, _Conf(autor_nombre="Ana")) == "Antes.\nDespués."
+    assert contenido.reemplazar_marcadores(texto, None) == "Antes.\nDespués."
+
+
+def test_bloque_de_aprobacion_en_la_misma_linea():
+    texto = "Te llega un mail.{{#APROBACION}} Llega cuando se aprueba tu pedido.{{/APROBACION}} Fin."
+
+    assert contenido.reemplazar_marcadores(texto, _con_aprobacion(False)) == "Te llega un mail. Fin."
+    assert contenido.reemplazar_marcadores(texto, _con_aprobacion(True)) == (
+        "Te llega un mail. Llega cuando se aprueba tu pedido. Fin."
+    )
+
+
+def test_bloques_de_aprobacion_y_de_newsletter_juntos_y_anidados():
+    texto = (
+        "{{#APROBACION}}Pedido.{{#NEWSLETTER}} Y {{NEWSLETTER}}.{{/NEWSLETTER}}{{/APROBACION}}"
+        "{{#NEWSLETTER}} Novedades.{{/NEWSLETTER}} Fin."
+    )
+
+    assert contenido.reemplazar_marcadores(texto, _con_aprobacion(True, "Substack")) == (
+        "Pedido. Y Substack. Novedades. Fin."
+    )
+    assert contenido.reemplazar_marcadores(texto, _con_aprobacion(True)) == "Pedido. Fin."
+    assert contenido.reemplazar_marcadores(texto, _con_aprobacion(False, "Substack")) == " Novedades. Fin."
+    assert contenido.reemplazar_marcadores(texto, _con_aprobacion(False)) == " Fin."
+
+
+@pytest.mark.parametrize("nombre", ["legal/privacidad.md", "legal/consentimientos.md"])
+def test_textos_legales_explican_la_aprobacion_solo_si_esta_activa(nombre):
+    raiz = Path(__file__).resolve().parents[2] / "contenido"
+    crudo = contenido.leer(raiz, nombre)
+    assert "{{#APROBACION}}" in crudo and "{{/APROBACION}}" in crudo
+
+    datos, _ = contenido.separar_frontmatter(crudo)
+    assert str(datos["version"]) == "2026-09-29"
+    _, con = contenido.separar_frontmatter(contenido.reemplazar_marcadores(crudo, _con_aprobacion(True)))
+    _, sin = contenido.separar_frontmatter(contenido.reemplazar_marcadores(crudo, _con_aprobacion(False)))
+
+    for cuerpo in (con, sin):
+        assert "{{" not in cuerpo and "****" not in cuerpo and "\n\n\n" not in cuerpo
+    for frase in ("quien administra el curso", "pendiente", "tutor", "90 días", "bienvenida"):
+        assert frase in con, frase
+    assert "90 días" not in sin
+    assert "pedido de acceso" not in sin.lower()

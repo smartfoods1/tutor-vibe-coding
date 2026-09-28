@@ -12,15 +12,29 @@ Todos los textos van en voseo, sin emojis, en texto plano y HTML simple. Los tex
 | Tipo | Disparador | Destinatario | Frecuencia | Baja |
 |---|---|---|---|---|
 | Código de acceso | `POST /auth/codigo` | quien lo pide | con los límites de FR-003 | no (transaccional) |
-| `bienvenida` | primera verificación del alumno | alumno | una vez en la vida | sí |
+| `bienvenida` | primera verificación del alumno; con `APROBACION_MANUAL`, cuando quien administra aprueba el pedido (`POST /admin/pedidos/{id}/aprobar`) | alumno aprobado | una vez en la vida | sí |
 | `recordatorio` | tarea periódica: alumno en el módulo 3 o más (`modulo_actual >= 3`), idea guardada, sin kit descargado y 3 días desde la última versión de la idea | alumno con `mails_curso = 1` | una vez en la vida | sí |
 | `contame` | `POST /links`, con el primer link que el alumno registra teniendo los mails aceptados | alumno con `mails_curso = 1` | una vez en la vida (clave `contame`) | sí |
 | `aviso_80` | tarea periódica: gasto del mes ≥ 80% del tope | Andrés (`ADMIN_EMAIL`) | una vez por mes | no |
+| `pedidos` | con `APROBACION_MANUAL`, `POST /auth/verificar` de un mail nuevo (que no sea `ADMIN_EMAIL`) | Andrés (`ADMIN_EMAIL`) | como mucho una vez por hora | no |
 
 Cada alumno recibe como mucho tres mails del curso en toda su vida: `bienvenida`, `recordatorio`
 y `contame`, cada uno una sola vez (así se cumple lo que dicen los textos legales). La clave de
 cada mail en la tabla `mails` es su tipo (`bienvenida`, `recordatorio`, `contame`); `aviso_80`
-usa `aviso_80:<AAAA-MM>`.
+usa `aviso_80:<AAAA-MM>` y `pedidos`, `pedidos:<AAAA-MM-DDTHH>` (la hora de Argentina).
+
+Los mails del curso van solo a alumnos con `estado = aprobado`: a quien espera la aprobación no le
+sale nada (`mails.enviar` devuelve `omitido`), tampoco el recordatorio de la tarea periódica.
+
+### Pedidos de acceso (aprobación manual)
+
+- Con `APROBACION_MANUAL`, al verificar un mail nuevo no sale la bienvenida: se encola
+  `mails.enviar(settings, None, "pedidos", "pedidos:<AAAA-MM-DDTHH>", {"pendientes": n})`, con `n`
+  = pedidos pendientes en ese momento. La clave por hora hace que salga como mucho un aviso por
+  hora: los pedidos que llegan en la misma hora no mandan otro.
+- Va a `ADMIN_EMAIL`, sin alumno, sin pie legal ni baja (como `aviso_80`). Si falla, el reintento
+  de la tarea periódica no trae `datos` y toma la cuenta de pendientes de la base.
+- La bienvenida sale al aprobar el pedido, con el mismo texto de siempre.
 
 ### Contame, una sola vez
 
@@ -43,7 +57,10 @@ usa `aviso_80:<AAAA-MM>`.
   link directo al módulo 3 y la baja.
 - **Contame**: una pregunta abierta ("contame qué hiciste y cómo te fue"); se responde al mail. Si
   el alumno no marcó `uso_contenido`, el mail no le pide permiso de nuevo.
-- **Aviso 80%**: gasto del mes, tope, alumnos activos en el mes y el link al reporte.
+- **Aviso 80%**: gasto del mes, tope, alumnos activos en el mes (solo aprobados) y el link al
+  reporte.
+- **Pedidos**: cuántos pedidos esperan (`{{PENDIENTES}}`) y el link al admin (`{{ENLACE_ADMIN}}`,
+  `https://<dominio>/admin`). Texto en `contenido/mails/pedidos.md`.
 
 ## Pie legal (Ley 25.326)
 

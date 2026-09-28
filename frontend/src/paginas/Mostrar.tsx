@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { useConfig } from '../componentes/Configuracion.tsx'
 import { Cargando, MensajeError, mensajeDe } from '../componentes/Estados.tsx'
 import Pagina from '../componentes/Pagina.tsx'
-import { api } from '../lib/api.ts'
+import PedidoPendiente from '../componentes/PedidoPendiente.tsx'
+import { api, cuentaPendiente } from '../lib/api.ts'
 import { textoUsoContenido } from '../lib/marca.ts'
 import { useCarga } from '../lib/useCarga.ts'
 import { normalizarLink } from '../lib/validar.ts'
@@ -93,6 +94,8 @@ export default function Mostrar() {
       </Pagina>
     )
   }
+
+  if (cuentaPendiente(yo.datos)) return <PedidoPendiente email={yo.datos.email} />
 
   if (yo.datos.modulo_actual < MODULO_MINIMO) {
     const actual = yo.datos.modulo_actual

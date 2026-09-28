@@ -69,6 +69,7 @@ def test_valores_por_defecto(entorno_limpio):
     assert settings.autor_nombre == ""
     assert settings.newsletter_nombre == ""
     assert settings.modo_demo is False
+    assert settings.aprobacion_manual is False
 
 
 def test_exige_las_claves_obligatorias(entorno_limpio):
@@ -116,7 +117,9 @@ def test_con_modo_demo_igual_exige_lo_demas(entorno_limpio):
 def test_modo_demo_autor_y_newsletter_desde_el_archivo(tmp_path, entorno_limpio):
     archivo = tmp_path / ".env"
     lineas = [f"{clave.upper()}={valor}" for clave, valor in OBLIGATORIAS.items()]
-    lineas += ["MODO_DEMO=true", "AUTOR_NOMBRE=  Ana Pérez ", "NEWSLETTER_NOMBRE=El boletín de Ana"]
+    lineas += [
+        "MODO_DEMO=true", "AUTOR_NOMBRE=  Ana Pérez ", "NEWSLETTER_NOMBRE=El boletín de Ana", "APROBACION_MANUAL=true"
+    ]
     archivo.write_text("\n".join(lineas), encoding="utf-8")
     entorno_limpio.setenv("VIBE_ENV_FILE", str(archivo))
 
@@ -125,6 +128,7 @@ def test_modo_demo_autor_y_newsletter_desde_el_archivo(tmp_path, entorno_limpio)
     assert settings.modo_demo is True
     assert settings.autor_nombre == "Ana Pérez"
     assert settings.newsletter_nombre == "El boletín de Ana"
+    assert settings.aprobacion_manual is True
     assert settings.anthropic_api_key == ""
 
 
@@ -174,7 +178,7 @@ def test_env_example_lista_exactamente_las_variables(entorno_limpio):
 def test_variables_vacias_toman_el_valor_por_defecto(tmp_path, entorno_limpio):
     archivo = tmp_path / ".env"
     lineas = [f"{clave.upper()}={valor}" for clave, valor in OBLIGATORIAS.items()]
-    lineas += ["TOPE_ALUMNO_USD=", "TOPE_MENSUAL_USD=", "AVISO_PRUEBA=", "MAX_CODIGOS_DIA="]
+    lineas += ["TOPE_ALUMNO_USD=", "TOPE_MENSUAL_USD=", "AVISO_PRUEBA=", "MAX_CODIGOS_DIA=", "APROBACION_MANUAL="]
     archivo.write_text("\n".join(lineas), encoding="utf-8")
 
     settings = Settings(_env_file=archivo, **{k: v for k, v in CLAVES_API.items()})
@@ -183,3 +187,4 @@ def test_variables_vacias_toman_el_valor_por_defecto(tmp_path, entorno_limpio):
     assert settings.tope_mensual_usd == 50.0
     assert settings.aviso_prueba is True
     assert settings.max_codigos_dia == 80
+    assert settings.aprobacion_manual is False

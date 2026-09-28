@@ -1,5 +1,5 @@
 ---
-version: "2026-09-28d"
+version: "2026-09-29"
 titulo: "Tus permisos"
 estado: borrador
 # Borrador para aprobación del autor y revisión de un abogado antes del lanzamiento (research §16).
@@ -9,6 +9,8 @@ estado: borrador
 # novedades es opcional y va desmarcada por defecto (FR-002). La casilla de novedades se muestra
 # solo si NEWSLETTER_NOMBRE tiene valor; si está vacío, el backend saca los bloques de newsletter.
 # {{AUTOR}} y {{NEWSLETTER}} los reemplaza el backend (AUTOR_NOMBRE y NEWSLETTER_NOMBRE).
+# Los bloques de aprobación se muestran solo con APROBACION_MANUAL=true (quien administra aprueba cada
+# inscripción; ver privacidad.md).
 # El proveedor del servidor está en Brasil según el registro RIPE de su IP (ver privacidad.md).
 mails_curso: "Acepto recibir los mails del curso: el acceso, un solo recordatorio si me quedo a mitad de camino y uno cuando registre mi página por primera vez. Me puedo dar de baja cuando quiera. Obligatorio para hacer el curso."
 transferencia: "Acepto que mis datos pasen por los proveedores que hacen andar el curso: Anthropic (el tutor), Google (la voz), Resend (los mails) y Cloudflare (el control anti-robots), en Estados Unidos, y Hostinger (el servidor), en Brasil. Esos países no tienen, para la autoridad argentina, una protección de datos adecuada. Obligatorio: sin esto el curso no funciona."
@@ -17,9 +19,15 @@ novedades: "Quiero recibir las novedades que {{AUTOR}} publica en {{NEWSLETTER}}
 
 Para inscribirte te pedimos tus permisos, cada uno por separado. Acá está qué significa cada uno. El detalle completo está en el aviso de privacidad.
 
+{{#APROBACION}}
+## Tu pedido de acceso
+
+En este curso, quien lo administra aprueba cada inscripción. Cuando verificás tu mail, tu cuenta queda pendiente hasta que se apruebe: mientras tanto no usa el tutor ni la voz, y el mail de bienvenida te llega recién cuando se aprueba. Si tu pedido no se aprueba, tus datos se borran: quien administra el curso lo puede rechazar y borrarlo a mano, y si nadie lo aprueba, se borra solo a los 90 días.
+
+{{/APROBACION}}
 ## Mails del curso (obligatorio)
 
-El curso te manda tres mails como mucho: la bienvenida con el acceso, un solo recordatorio si guardaste tu idea y no seguiste, y uno cuando registres tu página por primera vez. Si después registrás otro link, no te llega otro mail. Son el único contacto del curso con vos, por eso este permiso es obligatorio para inscribirte.
+El curso te manda tres mails como mucho: la bienvenida con el acceso{{#APROBACION}} (cuando se aprueba tu pedido){{/APROBACION}}, un solo recordatorio si guardaste tu idea y no seguiste, y uno cuando registres tu página por primera vez. Si después registrás otro link, no te llega otro mail. Son el único contacto del curso con vos, por eso este permiso es obligatorio para inscribirte.
 
 Cada mail trae un link para darte de baja. La baja no te saca del curso: seguís entrando con tu mail, y los mails con el código para entrar te siguen llegando cada vez que los pedís. Si te arrepentís, desde "Mis datos" te podés volver a dar de alta.
 

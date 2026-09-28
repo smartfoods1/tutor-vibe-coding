@@ -5,7 +5,7 @@ import { Cargando, MensajeError, mensajeDe } from '../componentes/Estados.tsx'
 import { Pie } from '../componentes/Pagina.tsx'
 import TextoMd from '../componentes/TextoMd.tsx'
 import Turnstile from '../componentes/Turnstile.tsx'
-import { api, type Consentimientos } from '../lib/api.ts'
+import { api, cuentaPendiente, type Consentimientos } from '../lib/api.ts'
 import { fuenteDeLaVisita } from '../lib/fuente.ts'
 import type { EstadoEntrar } from './Entrar.tsx'
 import { NOMBRE_CURSO } from '../lib/marca.ts'
@@ -32,7 +32,7 @@ const OBLIGATORIAS: Casilla[] = [
 const NOVEDADES: Casilla = { tipo: 'novedades', obligatoria: false }
 
 export default function Landing() {
-  const { turnstileSiteKey, newsletter, cargada } = useConfig()
+  const { turnstileSiteKey, newsletter, aprobacionManual, cargada } = useConfig()
   const casillas = newsletter ? [...OBLIGATORIAS, NOVEDADES] : OBLIGATORIAS
   const navigate = useNavigate()
   const { search } = useLocation()
@@ -132,14 +132,22 @@ export default function Landing() {
             Anotate
           </h2>
 
-          {sesion.datos && (
-            <div className="aviso aviso-logro mt-4">
-              <p>Ya estás adentro.</p>
-              <Link to="/inicio" className="enlace">
-                Seguir con el curso
-              </Link>
-            </div>
-          )}
+          {sesion.datos &&
+            (cuentaPendiente(sesion.datos) ? (
+              <div className="aviso mt-4">
+                <p>Ya te anotaste. Tu pedido de acceso está pendiente: te avisamos por mail cuando esté aprobado.</p>
+                <Link to="/pendiente" className="enlace">
+                  Ver tu pedido
+                </Link>
+              </div>
+            ) : (
+              <div className="aviso aviso-logro mt-4">
+                <p>Ya estás adentro.</p>
+                <Link to="/inicio" className="enlace">
+                  Seguir con el curso
+                </Link>
+              </div>
+            ))}
 
           {/* Se espera la config: de ella depende si va la casilla de novedades. */}
           {legales.cargando || !cargada ? (
@@ -214,6 +222,9 @@ export default function Landing() {
               <button type="submit" className="boton w-full" disabled={enviando}>
                 {enviando ? 'Mandando el código…' : 'Quiero empezar'}
               </button>
+              {aprobacionManual && (
+                <p className="text-marron">El acceso se aprueba a mano: te avisamos por mail cuando esté listo.</p>
+              )}
 
               <p>
                 <Link to="/privacidad" className="enlace">

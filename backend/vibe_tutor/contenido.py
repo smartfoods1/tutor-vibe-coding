@@ -5,6 +5,8 @@ verificación y si se probaron en la realidad (Constitución IV).
 
 Los textos pueden llevar {{AUTOR}} y {{NEWSLETTER}}, que dependen de quien opera el curso (AUTOR_NOMBRE
 y NEWSLETTER_NOMBRE en la configuración); `reemplazar_marcadores` los llena al servir o armar cada texto.
+También pueden llevar bloques condicionales: {{#NEWSLETTER}}...{{/NEWSLETTER}} (solo si hay newsletter)
+y {{#APROBACION}}...{{/APROBACION}} (solo con APROBACION_MANUAL).
 """
 
 import re
@@ -186,22 +188,34 @@ def reemplazar(texto: str, valores: Mapping[str, str]) -> str:
 
 
 def reemplazar_marcadores(texto: str, settings: object | None) -> str:
-    """Llena {{AUTOR}} y {{NEWSLETTER}} con la configuración (autor_nombre y newsletter_nombre).
+    """Llena {{AUTOR}} y {{NEWSLETTER}} con la configuración (autor_nombre y newsletter_nombre) y
+    resuelve los bloques {{#NEWSLETTER}} y {{#APROBACION}} (aprobacion_manual).
 
-    Sin configuración (None) usa los valores por defecto. La usan el prompt del tutor, las guías,
-    los textos legales y los mails; el kit suma `valores_del_curso` a sus propios marcadores.
+    Sin configuración (None) usa los valores por defecto y saca los dos tipos de bloque. La usan el
+    prompt del tutor, las guías, los textos legales y los mails; el kit suma `valores_del_curso` a
+    sus propios marcadores.
     """
     newsletter = getattr(settings, "newsletter_nombre", None)
     valores = valores_del_curso(getattr(settings, "autor_nombre", None), newsletter)
-    return reemplazar(_bloques_de_newsletter(texto, bool((newsletter or "").strip())), valores)
+    mostrar = {
+        "NEWSLETTER": bool((newsletter or "").strip()),
+        "APROBACION": bool(getattr(settings, "aprobacion_manual", False)),
+    }
+    for nombre, patron in _BLOQUES.items():
+        texto = _bloques(patron, texto, mostrar[nombre])
+    return reemplazar(texto, valores)
 
 
-# {{#NEWSLETTER}}...{{/NEWSLETTER}}: se deja (sin las marcas) solo si el curso tiene newsletter.
-# Un bloque en líneas propias se lleva también su salto de línea.
-_BLOQUE_NEWSLETTER = re.compile(r"\{\{#NEWSLETTER\}\}(\n?)(.*?)\{\{/NEWSLETTER\}\}(\n?)", re.DOTALL)
+# {{#NOMBRE}}...{{/NOMBRE}}: se deja (sin las marcas) solo si se cumple su condición; si no, se saca
+# entero. Un bloque en líneas propias se lleva también su salto de línea. Los bloques de nombres
+# distintos se pueden anidar: se resuelven de a un nombre por vez.
+_BLOQUES = {
+    nombre: re.compile(r"\{\{#" + nombre + r"\}\}(\n?)(.*?)\{\{/" + nombre + r"\}\}(\n?)", re.DOTALL)
+    for nombre in ("NEWSLETTER", "APROBACION")
+}
 
 
-def _bloques_de_newsletter(texto: str, hay_newsletter: bool) -> str:
-    if hay_newsletter:
-        return _BLOQUE_NEWSLETTER.sub(lambda m: m.group(2) + (m.group(3) if not m.group(1) else ""), texto)
-    return _BLOQUE_NEWSLETTER.sub(lambda m: m.group(3) if not m.group(1) else "", texto)
+def _bloques(patron: re.Pattern, texto: str, mostrar: bool) -> str:
+    if mostrar:
+        return patron.sub(lambda m: m.group(2) + (m.group(3) if not m.group(1) else ""), texto)
+    return patron.sub(lambda m: m.group(3) if not m.group(1) else "", texto)

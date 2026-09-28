@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # Con true el tutor responde con un guion fijo, sin llamar a Claude; la voz queda apagada, los
     # mails se registran en el log en vez de mandarse y no hacen falta claves de API.
     modo_demo: bool = False
+    # Con true quien administra aprueba cada inscripción (/admin): hasta entonces la cuenta queda
+    # pendiente y no usa el tutor, así un link que se viraliza no se come el tope del mes.
+    aprobacion_manual: bool = False
 
     @field_validator("dev_codigo_fijo", mode="before")
     @classmethod

@@ -1,9 +1,11 @@
 ---
-version: "2026-09-28d"
+version: "2026-09-29"
 titulo: "Aviso de privacidad"
 estado: borrador
 # Borrador para aprobación del autor y revisión de un abogado antes del lanzamiento (research §16).
 # {{AUTOR}} y {{NEWSLETTER}} los reemplaza el backend (AUTOR_NOMBRE y NEWSLETTER_NOMBRE).
+# Los bloques de aprobación se muestran solo con APROBACION_MANUAL=true (quien administra aprueba cada
+# inscripción; los pedidos que nadie aprueba se borran a los 90 días, decisión del autor del 29/9/2026).
 # Cubre lo que pide el art. 6 de la Ley 25.326 y la leyenda del art. 3 de la Resolución AAIP 14/2018.
 # Fuentes (consultadas el 2026-09-28):
 # - Ley 25.326, arts. 5, 6, 7, 12, 14 y 16 (texto actualizado en InfoLEG):
@@ -27,7 +29,8 @@ estado: borrador
 Este aviso es el borrador para Argentina (Ley 25.326) de la instalación del autor. No es
 asesoramiento legal: adaptalo a tu país, tu responsable y tus proveedores.
 Las partes marcadas como bloque de newsletter se muestran solo si la instalación tiene
-newsletter (NEWSLETTER_NOMBRE); si no, el backend las saca.
+newsletter (NEWSLETTER_NOMBRE); si no, el backend las saca. Las marcadas como bloque de
+aprobación se muestran solo si quien administra aprueba cada inscripción (APROBACION_MANUAL).
 -->
 
 Este aviso explica qué datos tuyos guarda el curso, para qué, con quién se comparten, cuánto tiempo se guardan y cómo podés verlos, descargarlos o borrarlos. Leelo antes de inscribirte.
@@ -47,7 +50,7 @@ Los datos del curso forman una base de datos propia del curso.
 - Darte acceso al curso con un código que te llega por mail, sin contraseña.
 - Que el tutor te acompañe en los módulos 1 a 3 y retome donde quedaste.
 - Guardar tu idea y tu avance, y armar tu carpeta del curso con tu idea adentro.
-- Mandarte los mails del curso, tres como mucho: la bienvenida, un solo recordatorio si te quedás a mitad de camino y uno cuando registres tu página por primera vez.
+- Mandarte los mails del curso, tres como mucho: la bienvenida{{#APROBACION}} (cuando se aprueba tu pedido de acceso){{/APROBACION}}, un solo recordatorio si te quedás a mitad de camino y uno cuando registres tu página por primera vez.
 {{#NEWSLETTER}}
 - Si lo aceptás, sumarte a la lista de {{NEWSLETTER}} donde {{AUTOR}} publica sus novedades.
 {{/NEWSLETTER}}
@@ -57,11 +60,24 @@ Los datos del curso forman una base de datos propia del curso.
 
 No vendemos tus datos ni los usamos para publicidad de otros. Tus datos no salen del sistema del curso, salvo en los casos que se explican más abajo.
 
+{{#APROBACION}}
+## Tu pedido de acceso
+
+En este curso, quien lo administra aprueba cada inscripción. Cuando verificás tu mail, tu cuenta queda como un pedido de acceso pendiente, con tu mail, de dónde llegaste y los permisos que diste.
+
+- Mientras tu pedido está pendiente, tu cuenta no usa el tutor ni la voz, así que no se manda nada tuyo a Anthropic ni a Google. Desde "Mis datos" igual podés ver, descargar o borrar lo que guardamos.
+- El mail de bienvenida te llega cuando se aprueba tu pedido.
+- Si tu pedido no se aprueba, tus datos se borran: quien administra el curso lo puede rechazar y borrarlo a mano, y si nadie lo aprueba, se borra solo a los 90 días de tu inscripción.
+
+{{/APROBACION}}
 ## Qué datos guardamos
 
 - Tu mail.
 - De dónde llegaste al curso, si el link por el que entraste lo indica.
 - Los permisos que diste o sacaste, con su fecha y la versión del texto que aceptaste.
+{{#APROBACION}}
+- Si tu pedido de acceso está pendiente o ya se aprobó.
+{{/APROBACION}}
 - Tu avance: qué módulos terminaste, cuándo, y un resumen corto de cada módulo que escribe el tutor, sin datos personales ni de salud.
 - Tu idea en una página y lo que quedó para "qué sigue", con todas sus versiones.
 - Tus conversaciones con el tutor: lo que escribís o dictás y lo que te responde.
@@ -117,6 +133,9 @@ Estados Unidos y Brasil no figuran en la lista de países con un nivel de protec
 
 - **Conversaciones con el tutor:** se borran 30 días después de que terminás el módulo. Las de un módulo que no terminaste, 12 meses después de tu última actividad en el curso. Queda solo el resumen del módulo, sin datos personales ni de salud.
 - **Tu idea, tu avance, tus links y tus permisos:** hasta que los borres.
+{{#APROBACION}}
+- **Pedidos de acceso que no se aprueban:** se borran cuando quien administra el curso los rechaza o, si nadie los aprueba, a los 90 días de la inscripción.
+{{/APROBACION}}
 - **Códigos de acceso y la dirección IP desde la que los pediste:** se borran a las 24 horas.
 - **Capturas y audio de tu voz:** no se guardan.
 - **Registros técnicos del servidor:** [A confirmar en el despliegue: cuánto tiempo guarda el servidor sus registros técnicos, como las direcciones IP de las visitas]

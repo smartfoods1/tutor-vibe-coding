@@ -6,6 +6,7 @@ import Pagina from '../componentes/Pagina.tsx'
 import Turnstile from '../componentes/Turnstile.tsx'
 import { ErrorApi, api, type Consentimientos } from '../lib/api.ts'
 import { MENSAJE_MAIL, emailValido, normalizarEmail } from '../lib/validar.ts'
+import type { EstadoPendiente } from './Pendiente.tsx'
 
 /** Lo que llega en el state de la navegación: de la portada (al anotarse) o de una página privada. */
 export interface EstadoEntrar {
@@ -68,7 +69,13 @@ export default function Entrar() {
     setError(null)
     setOcupado(true)
     try {
-      const { nuevo } = await api.verificar(email, numeros)
+      const { nuevo, estado: cuenta } = await api.verificar(email, numeros)
+      if (cuenta === 'pendiente') {
+        // La cuenta espera que quien administra la apruebe: todavía no hay curso para mostrar.
+        const pendiente: EstadoPendiente = { email }
+        navigate('/pendiente', { replace: true, state: pendiente })
+        return
+      }
       const destino = nuevo ? '/modulo/1' : estado.desde && estado.desde !== '/entrar' ? estado.desde : '/inicio'
       navigate(destino, { replace: true })
     } catch (e) {

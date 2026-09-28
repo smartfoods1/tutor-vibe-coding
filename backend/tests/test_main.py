@@ -28,7 +28,12 @@ def test_config_por_defecto(pedir_config):
         "autor_nombre": None,
         "newsletter": None,
         "modo_demo": False,
+        "aprobacion_manual": False,
     }
+
+
+def test_config_con_aprobacion_manual(pedir_config):
+    assert pedir_config(aprobacion_manual=True)["aprobacion_manual"] is True
 
 
 def test_config_con_autor_newsletter_y_modo_demo(pedir_config):

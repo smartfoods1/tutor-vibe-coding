@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useConfig } from '../componentes/Configuracion.tsx'
 import { Cargando, MensajeError, mensajeDe } from '../componentes/Estados.tsx'
 import Pagina from '../componentes/Pagina.tsx'
-import { api, type CambiosLink, type LinkPropio } from '../lib/api.ts'
+import { api, cuentaPendiente, type CambiosLink, type LinkPropio } from '../lib/api.ts'
 import { textoUsoContenido } from '../lib/marca.ts'
 import { useCarga } from '../lib/useCarga.ts'
 import { esLinkSeguro } from '../lib/validar.ts'
@@ -142,7 +142,8 @@ export default function MisDatos() {
             )}
           </section>
 
-          <MisLinks />
+          {/* Una cuenta pendiente no tiene links (ni puede pedirlos): solo ve, baja o borra sus datos. */}
+          {!cuentaPendiente(yo) && <MisLinks />}
 
           <section aria-labelledby="bajar" className="mt-10">
             <h2 id="bajar" className="text-[1.3rem] font-bold">

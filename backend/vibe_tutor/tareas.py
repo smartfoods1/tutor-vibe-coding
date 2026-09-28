@@ -1,5 +1,5 @@
 """Tarea periódica del curso (data-model.md, contracts/mails.md): recordatorio, aviso del 80%,
-reintentos de mails fallidos y retención de datos.
+reintentos de mails fallidos y retención de datos (también de los pedidos de acceso que nadie aprobó).
 
 `correr_una_vez` hace todo lo que toca la base (se prueba con un reloj inyectado) y devuelve los
 mails que hay que mandar; `bucle` la corre cada 15 minutos y manda esos mails con `mails.enviar`.
@@ -25,6 +25,8 @@ VENTANA_REINTENTOS = timedelta(hours=24)
 RETENCION_SESIONES = timedelta(days=30)
 INACTIVIDAD_SESIONES = timedelta(days=365)
 VIDA_CODIGOS = timedelta(hours=24)
+# Un pedido de acceso (APROBACION_MANUAL) que nadie aprobó se borra a los 90 días de la inscripción.
+VIDA_PENDIENTES = timedelta(days=90)
 PAUSA_ENTRE_MAILS = 0.6  # segundos; Resend limita los pedidos por segundo
 
 log = logging.getLogger(__name__)
@@ -42,12 +44,13 @@ def _iso(momento: datetime) -> str:
 
 
 def recordatorios(con: sqlite3.Connection, ahora: datetime) -> list[Envio]:
-    """Ya en el módulo 3 o más, idea guardada hace 3 días o más, sin kit, con mails del curso y sin
-    recordatorio previo (el mail lleva al módulo 3: a quien no llegó no le sirve)."""
+    """Aprobado, ya en el módulo 3 o más, idea guardada hace 3 días o más, sin kit, con mails del curso
+    y sin recordatorio previo (el mail lleva al módulo 3: a quien no llegó no le sirve)."""
     filas = con.execute(
         """
         SELECT a.id FROM alumnos a
-        WHERE a.modulo_actual >= 3
+        WHERE a.estado = 'aprobado'
+          AND a.modulo_actual >= 3
           AND (SELECT creado FROM ideas WHERE alumno_id = a.id ORDER BY version DESC LIMIT 1) <= ?
           AND NOT EXISTS (SELECT 1 FROM kits WHERE alumno_id = a.id)
           AND NOT EXISTS (SELECT 1 FROM mails WHERE alumno_id = a.id AND clave = 'recordatorio')
@@ -89,8 +92,10 @@ def reintentos(con: sqlite3.Connection, ahora: datetime) -> list[Envio]:
 def retencion(con: sqlite3.Connection, ahora: datetime) -> dict[str, int]:
     """Borra conversaciones terminadas hace 30 días; las que quedaron abiertas en un módulo que se
     completó hace más de 30 días (se reabrió después de completarlo) cuando su último mensaje (o su
-    inicio, si no tiene) tiene más de 30 días; las abandonadas tras 12 meses sin actividad, y los
-    códigos de más de 24 h. Los mensajes se van en cascada; `uso` queda sin sesión."""
+    inicio, si no tiene) tiene más de 30 días; las abandonadas tras 12 meses sin actividad; los
+    códigos de más de 24 h, y los pedidos de acceso pendientes de más de 90 días (con todos sus datos
+    y un evento `borrado` anónimo por cada uno). Los mensajes se van en cascada; `uso` queda sin
+    sesión."""
     limite = _iso(ahora - RETENCION_SESIONES)
     with con:
         terminadas = con.execute("DELETE FROM sesiones WHERE fin IS NOT NULL AND fin < ?", (limite,)).rowcount
@@ -111,11 +116,16 @@ def retencion(con: sqlite3.Connection, ahora: datetime) -> dict[str, int]:
             (_iso(ahora - INACTIVIDAD_SESIONES),),
         ).rowcount
         codigos = con.execute("DELETE FROM codigos WHERE creado < ?", (_iso(ahora - VIDA_CODIGOS),)).rowcount
+        pendientes = con.execute(
+            "DELETE FROM alumnos WHERE estado = 'pendiente' AND creado < ?", (_iso(ahora - VIDA_PENDIENTES),)
+        ).rowcount
+        con.executemany("INSERT INTO eventos (alumno_id, tipo) VALUES (NULL, 'borrado')", [()] * pendientes)
     borrados = {
         "sesiones_terminadas": terminadas,
         "sesiones_reabiertas": reabiertas,
         "sesiones_abandonadas": abandonadas,
         "codigos": codigos,
+        "pendientes": pendientes,
     }
     if any(borrados.values()):
         log.info("retención: %s", borrados)

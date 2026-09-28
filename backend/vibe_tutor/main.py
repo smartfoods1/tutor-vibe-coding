@@ -64,6 +64,7 @@ def crear_app() -> FastAPI:
             "autor_nombre": settings.autor_nombre.strip() or None,
             "newsletter": settings.newsletter_nombre.strip() or None,
             "modo_demo": settings.modo_demo,
+            "aprobacion_manual": settings.aprobacion_manual,
         }
 
     for modulo in (auth, voz, api, alumnos, admin, mails):

@@ -35,6 +35,10 @@ def _app(settings) -> FastAPI:
     def admin(alumno: auth.Alumno = Depends(auth.solo_admin)) -> dict:
         return {"ok": True}
 
+    @app.get("/api/aprobado-prueba")
+    def aprobado(alumno: auth.Alumno = Depends(auth.alumno_aprobado)) -> dict:
+        return {"id": alumno.id, "estado": alumno.estado}
+
     app.dependency_overrides[get_settings] = lambda: settings
     return app
 
@@ -51,7 +55,7 @@ def mails_enviados(monkeypatch):
     enviados = []
 
     async def falso(settings, alumno_id, tipo, clave, datos=None):
-        enviados.append((alumno_id, tipo, clave))
+        enviados.append((alumno_id, tipo, clave) if datos is None else (alumno_id, tipo, clave, datos))
         return "enviado"
 
     monkeypatch.setattr(mails, "enviar", falso)
@@ -231,7 +235,7 @@ def test_verificar_crea_el_alumno_con_consentimientos_fuente_y_evento(cliente, r
     respuesta = _entrar(cliente, resend, fuente="hecho-en")
 
     assert respuesta.status_code == 200
-    assert respuesta.json() == {"ok": True, "nuevo": True}
+    assert respuesta.json() == {"ok": True, "nuevo": True, "estado": "aprobado"}
     con = _con(settings_tmp)
     alumno = dominio.alumno_por_email(con, MAIL)
     assert alumno["fuente"] == "hecho-en"
@@ -242,6 +246,7 @@ def test_verificar_crea_el_alumno_con_consentimientos_fuente_y_evento(cliente, r
     assert versiones and "" not in versiones
     eventos = [tuple(f) for f in con.execute("SELECT alumno_id, tipo, detalle FROM eventos")]
     assert eventos == [(alumno["id"], "inscripcion", "fuente=hecho-en")]
+    assert alumno["estado"] == "aprobado"
     pendientes = con.execute("SELECT pendiente_json FROM codigos").fetchone()[0]
     con.close()
     assert pendientes is None
@@ -288,7 +293,7 @@ def test_segunda_entrada_no_duplica_alumno_ni_bienvenida(cliente, resend, settin
 
     respuesta = _entrar(cliente, resend)
 
-    assert respuesta.json() == {"ok": True, "nuevo": False}
+    assert respuesta.json() == {"ok": True, "nuevo": False, "estado": "aprobado"}
     con = _con(settings_tmp)
     assert con.execute("SELECT count(*) FROM alumnos").fetchone()[0] == 1
     assert con.execute("SELECT count(*) FROM eventos WHERE tipo = 'inscripcion'").fetchone()[0] == 1
@@ -543,6 +548,108 @@ def test_sin_dev_codigo_configurado(settings_tmp, reloj, externos, mails_enviado
         respuesta = c.post("/api/auth/verificar", json={"email": MAIL, "codigo": CODIGO_DEV})
 
     assert respuesta.status_code == 401
+
+
+# --- aprobación manual (APROBACION_MANUAL) ----------------------------------------------------------
+
+
+@pytest.fixture
+def manual(settings_tmp, reloj, externos, mails_enviados):
+    """Cliente de una instalación donde quien administra aprueba cada inscripción."""
+    settings = settings_tmp.model_copy(update={"aprobacion_manual": True})
+    with TestClient(_app(settings), base_url="https://testserver") as c:
+        yield c
+
+
+def test_con_aprobacion_manual_el_alumno_nuevo_queda_pendiente_y_avisa(manual, resend, settings_tmp, mails_enviados):
+    respuesta = _entrar(manual, resend, fuente="hecho-en")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == {"ok": True, "nuevo": True, "estado": "pendiente"}
+    assert respuesta.cookies.get(auth.COOKIE)
+    con = _con(settings_tmp)
+    alumno = dominio.alumno_por_email(con, MAIL)
+    eventos = [tuple(f) for f in con.execute("SELECT alumno_id, tipo FROM eventos")]
+    con.close()
+    assert alumno["estado"] == "pendiente"
+    assert alumno["fuente"] == "hecho-en"
+    assert eventos == [(alumno["id"], "inscripcion")]
+    # Sin bienvenida: sale el aviso a quien administra, con clave por hora de Argentina (T0 son las 12).
+    assert mails_enviados == [(None, "pedidos", "pedidos:2026-09-26T12", {"pendientes": 1})]
+
+
+def test_con_aprobacion_manual_el_aviso_cuenta_los_pendientes(manual, resend, reloj, mails_enviados):
+    _entrar(manual, resend)
+    reloj["ahora"] = T0 + timedelta(minutes=30)
+    _entrar(manual, resend, email="beto@example.com")
+    reloj["ahora"] = T0 + timedelta(hours=1)
+    _entrar(manual, resend, email="caro@example.com")
+
+    assert mails_enviados == [
+        (None, "pedidos", "pedidos:2026-09-26T12", {"pendientes": 1}),
+        (None, "pedidos", "pedidos:2026-09-26T12", {"pendientes": 2}),
+        (None, "pedidos", "pedidos:2026-09-26T13", {"pendientes": 3}),
+    ]
+
+
+def test_con_aprobacion_manual_quien_administra_entra_aprobado(manual, resend, settings_tmp, mails_enviados):
+    respuesta = _entrar(manual, resend, email="Admin@Example.com")
+
+    assert respuesta.json() == {"ok": True, "nuevo": True, "estado": "aprobado"}
+    con = _con(settings_tmp)
+    alumno = dominio.alumno_por_email(con, ADMIN)
+    con.close()
+    assert alumno["estado"] == "aprobado"
+    assert mails_enviados == [(alumno["id"], "bienvenida", "bienvenida")]
+
+
+def test_un_pendiente_que_vuelve_a_entrar_sigue_pendiente_sin_otro_aviso(manual, resend, mails_enviados):
+    _entrar(manual, resend)
+    manual.post("/api/auth/salir")
+
+    respuesta = _entrar(manual, resend)
+
+    assert respuesta.json() == {"ok": True, "nuevo": False, "estado": "pendiente"}
+    assert len(mails_enviados) == 1
+
+
+def test_un_aprobado_entra_aprobado_aunque_se_active_la_aprobacion_manual(cliente, manual, resend, mails_enviados):
+    assert _entrar(cliente, resend).json()["estado"] == "aprobado"
+
+    respuesta = _entrar(manual, resend)
+
+    assert respuesta.json() == {"ok": True, "nuevo": False, "estado": "aprobado"}
+    assert [m[1] for m in mails_enviados] == ["bienvenida"]
+
+
+def test_quien_espera_aprobacion_tiene_sesion_pero_no_acceso(manual, resend):
+    _entrar(manual, resend)
+
+    assert manual.get("/api/yo-prueba").status_code == 200
+    respuesta = manual.get("/api/aprobado-prueba")
+
+    assert respuesta.status_code == 403
+    assert respuesta.json() == {"detalle": auth.MENSAJE_PENDIENTE, "estado": "pendiente"}
+    assert auth.MENSAJE_PENDIENTE == (
+        "Tu pedido de acceso está pendiente. Te avisamos por mail cuando esté aprobado."
+    )
+
+
+def test_alumno_aprobado_deja_pasar_a_los_aprobados(cliente, resend):
+    _entrar(cliente, resend)
+
+    assert cliente.get("/api/aprobado-prueba").json()["estado"] == "aprobado"
+    cliente.cookies.clear()
+    assert cliente.get("/api/aprobado-prueba").status_code == 401
+
+
+def test_quien_administra_siempre_cuenta_como_aprobado(cliente, settings_tmp):
+    con = _con(settings_tmp)
+    admin_id = dominio.crear_alumno(con, ADMIN, fuente=None, estado="pendiente")
+    con.close()
+    cliente.cookies.set(auth.COOKIE, auth.emitir_token(settings_tmp, admin_id))
+
+    assert cliente.get("/api/aprobado-prueba").json() == {"id": admin_id, "estado": "aprobado"}
 
 
 # --- fallos acumulados por mail ------------------------------------------------------------------

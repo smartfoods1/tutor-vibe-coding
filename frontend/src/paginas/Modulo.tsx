@@ -6,9 +6,10 @@ import { useConfig } from '../componentes/Configuracion.tsx'
 import { Cargando, MensajeError, mensajeDe } from '../componentes/Estados.tsx'
 import GuiaEscrita from '../componentes/GuiaEscrita.tsx'
 import Pagina from '../componentes/Pagina.tsx'
+import PedidoPendiente from '../componentes/PedidoPendiente.tsx'
 import Reproductor from '../componentes/Reproductor.tsx'
 import Taller from '../componentes/Taller.tsx'
-import { api, type Alcance, type Yo } from '../lib/api.ts'
+import { api, cuentaPendiente, type Alcance, type Yo } from '../lib/api.ts'
 import { TITULOS_MODULOS } from '../lib/marca.ts'
 import { useCarga } from '../lib/useCarga.ts'
 import NoEncontrada from './NoEncontrada.tsx'
@@ -63,6 +64,9 @@ function VistaModulo({ modulo }: { modulo: number }) {
       </Pagina>
     )
   }
+
+  // Sin aprobar no se abre el tutor (ni se gasta el saludo).
+  if (cuentaPendiente(yo)) return <PedidoPendiente email={yo.email} />
 
   if (modulo > yo.modulo_actual) {
     return (

@@ -3,11 +3,11 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import yaml
 
-from vibe_tutor import admin, costos, dominio
+from vibe_tutor import admin, costos, dominio, mails
 
 T0 = datetime(2026, 9, 28, 15, 0, tzinfo=timezone.utc)
 ADMIN = "admin@example.com"
-RUTAS = ("/api/admin/reporte", "/api/admin/novedades.csv", "/api/admin/links")
+RUTAS = ("/api/admin/reporte", "/api/admin/novedades.csv", "/api/admin/links", "/api/admin/pedidos")
 
 
 def _iso(momento: datetime) -> str:
@@ -136,6 +136,7 @@ def test_reporte_vacio(cliente, machete):
     datos = cliente.get("/api/admin/reporte").json()
 
     assert datos["embudo"] == {"total": _etapas(), "ultimos_30_dias": _etapas(), "por_fuente": []}
+    assert datos["pendientes"] == 0
     assert datos["gasto"]["mes_usd"] == 0
     assert datos["gasto"]["promedio_por_alumno_usd"] == 0
     assert datos["generado"] == "2026-09-28T15:00:00+00:00"
@@ -299,3 +300,142 @@ def test_un_alumno_comun_no_aprueba_links(hacer_cliente, base):
 
     assert respuesta.status_code == 403
     assert base.execute("SELECT aprobado FROM links WHERE id = ?", (link_id,)).fetchone()[0] == 0
+
+
+# --- pedidos de acceso (APROBACION_MANUAL) -------------------------------------------------------------
+
+
+@pytest.fixture
+def mails_enviados(monkeypatch):
+    enviados = []
+
+    async def falso(settings, alumno_id, tipo, clave, datos=None):
+        enviados.append((alumno_id, tipo, clave))
+        return "enviado"
+
+    monkeypatch.setattr(mails, "enviar", falso)
+    return enviados
+
+
+def _alumno(con, email: str, *, estado: str, creado: datetime, fuente: str | None = None) -> int:
+    alumno_id = dominio.crear_alumno(con, email, fuente=fuente, estado=estado)
+    dominio.agregar_consentimiento(con, alumno_id, "mails_curso", True, "prueba")
+    dominio.registrar_evento(con, alumno_id, "inscripcion")
+    with con:
+        con.execute("UPDATE alumnos SET creado = ? WHERE id = ?", (_iso(creado), alumno_id))
+    return alumno_id
+
+
+def _estado(con, alumno_id: int) -> str | None:
+    fila = dominio.alumno(con, alumno_id)
+    return fila["estado"] if fila else None
+
+
+def test_pedidos_pendientes_los_mas_viejos_primero(cliente, base):
+    nuevo = _alumno(base, "nuevo@example.com", estado="pendiente", creado=_hace(1), fuente="hecho-en")
+    _alumno(base, "aprobada@example.com", estado="aprobado", creado=_hace(5))
+    viejo = _alumno(base, "viejo@example.com", estado="pendiente", creado=_hace(3))
+
+    respuesta = cliente.get("/api/admin/pedidos")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == [
+        {"id": viejo, "email": "viejo@example.com", "creado": _iso(_hace(3)), "fuente": None},
+        {"id": nuevo, "email": "nuevo@example.com", "creado": _iso(_hace(1)), "fuente": "hecho-en"},
+    ]
+
+
+def test_sin_pedidos_la_lista_esta_vacia(cliente):
+    assert cliente.get("/api/admin/pedidos").json() == []
+
+
+def test_aprobar_un_pedido_manda_la_bienvenida(cliente, base, mails_enviados):
+    pendiente = _alumno(base, "ana@example.com", estado="pendiente", creado=_hace(1))
+
+    respuesta = cliente.post(f"/api/admin/pedidos/{pendiente}/aprobar")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == {"ok": True}
+    assert _estado(base, pendiente) == "aprobado"
+    eventos = [tuple(f) for f in base.execute("SELECT alumno_id, tipo FROM eventos WHERE tipo = 'aprobacion'")]
+    assert eventos == [(pendiente, "aprobacion")]
+    assert mails_enviados == [(pendiente, "bienvenida", "bienvenida")]
+    assert cliente.get("/api/admin/pedidos").json() == []
+
+
+def test_aprobar_un_pedido_ya_aprobado_da_409(cliente, base, mails_enviados):
+    aprobado = _alumno(base, "ana@example.com", estado="aprobado", creado=_hace(1))
+
+    respuesta = cliente.post(f"/api/admin/pedidos/{aprobado}/aprobar")
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detalle"]
+    assert mails_enviados == []
+    assert base.execute("SELECT count(*) FROM eventos WHERE tipo = 'aprobacion'").fetchone()[0] == 0
+
+
+def test_aprobar_un_pedido_que_no_existe_da_404(cliente, mails_enviados):
+    respuesta = cliente.post("/api/admin/pedidos/999/aprobar")
+
+    assert respuesta.status_code == 404
+    assert respuesta.json()["detalle"]
+    assert mails_enviados == []
+
+
+def test_rechazar_un_pedido_borra_sus_datos(cliente, base, mails_enviados):
+    pendiente = _alumno(base, "ana@example.com", estado="pendiente", creado=_hace(1))
+    otro = _alumno(base, "beto@example.com", estado="pendiente", creado=_hace(1))
+    with base:
+        base.execute(
+            "INSERT INTO codigos (email, hash, sal, vence) VALUES (?, 'h', 's', '2026-01-01T00:00:00+00:00')",
+            ("ana@example.com",),
+        )
+
+    respuesta = cliente.delete(f"/api/admin/pedidos/{pendiente}")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == {"ok": True}
+    assert dominio.alumno(base, pendiente) is None
+    assert base.execute("SELECT count(*) FROM consentimientos WHERE alumno_id = ?", (pendiente,)).fetchone()[0] == 0
+    assert base.execute("SELECT count(*) FROM codigos WHERE email = 'ana@example.com'").fetchone()[0] == 0
+    eventos = [
+        tuple(f) for f in base.execute("SELECT alumno_id, tipo FROM eventos WHERE alumno_id IS NULL ORDER BY id")
+    ]
+    assert eventos == [(None, "inscripcion"), (None, "borrado")]
+    assert dominio.alumno(base, otro) is not None
+    assert mails_enviados == []
+
+
+def test_rechazar_a_un_aprobado_da_409_y_no_lo_borra(cliente, base):
+    aprobado = _alumno(base, "ana@example.com", estado="aprobado", creado=_hace(1))
+
+    respuesta = cliente.delete(f"/api/admin/pedidos/{aprobado}")
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["detalle"]
+    assert _estado(base, aprobado) == "aprobado"
+
+
+def test_rechazar_un_pedido_que_no_existe_da_404(cliente):
+    assert cliente.delete("/api/admin/pedidos/999").status_code == 404
+
+
+@pytest.mark.parametrize(("metodo", "ruta"), [("post", "/aprobar"), ("delete", "")])
+def test_un_alumno_comun_no_aprueba_ni_rechaza_pedidos(hacer_cliente, base, mails_enviados, metodo, ruta):
+    pendiente = _alumno(base, "beto@example.com", estado="pendiente", creado=_hace(1))
+    alumno = hacer_cliente([admin.router], email="ana@example.com")
+
+    respuesta = getattr(alumno, metodo)(f"/api/admin/pedidos/{pendiente}{ruta}")
+
+    assert respuesta.status_code == 403
+    assert _estado(base, pendiente) == "pendiente"
+    assert hacer_cliente([admin.router]).post(f"/api/admin/pedidos/{pendiente}/aprobar").status_code == 401
+    assert mails_enviados == []
+
+
+def test_el_reporte_cuenta_los_pedidos_pendientes(cliente, base, machete):
+    for numero in range(2):
+        _alumno(base, f"pendiente{numero}@example.com", estado="pendiente", creado=_hace(1))
+    _alumno(base, "aprobado@example.com", estado="aprobado", creado=_hace(1))
+
+    assert cliente.get("/api/admin/reporte").json()["pendientes"] == 2

@@ -24,8 +24,8 @@ def base(db_de):
     con.close()
 
 
-def _alumno(con, email: str, *, mails_curso: bool = True, modulo: int = 3) -> int:
-    alumno_id = dominio.crear_alumno(con, email, fuente=None)
+def _alumno(con, email: str, *, mails_curso: bool = True, modulo: int = 3, estado: str = "aprobado") -> int:
+    alumno_id = dominio.crear_alumno(con, email, fuente=None, estado=estado)
     with con:
         con.execute("UPDATE alumnos SET modulo_actual = ? WHERE id = ?", (modulo, alumno_id))
     dominio.agregar_consentimiento(con, alumno_id, "mails_curso", True, "prueba")
@@ -100,6 +100,15 @@ def test_recordatorio_a_los_3_dias_de_la_ultima_version_de_la_idea(settings_tmp,
         Envio(listo, "recordatorio", "recordatorio"),
         Envio(en_el_modulo_4, "recordatorio", "recordatorio"),
     ]
+
+
+def test_recordatorio_solo_a_quien_ya_fue_aprobado(settings_tmp, base):
+    pendiente = _alumno(base, "pendiente@example.com", estado="pendiente")
+    _idea(base, pendiente, T0 - timedelta(days=5))
+    aprobado = _alumno(base, "aprobado@example.com")
+    _idea(base, aprobado, T0 - timedelta(days=5))
+
+    assert tareas.correr_una_vez(settings_tmp, T0) == [Envio(aprobado, "recordatorio", "recordatorio")]
 
 
 def test_recordatorio_fallido_no_se_duplica_con_el_reintento(settings_tmp, base):
@@ -210,6 +219,42 @@ def test_retencion_de_conversaciones_y_codigos(settings_tmp, base):
     assert base.execute("SELECT resumen FROM avance WHERE alumno_id = ?", (activo,)).fetchone()[0] == "resumen"
     assert [f[0] for f in base.execute("SELECT email FROM codigos")] == ["hace-23@example.com"]
     assert dominio.alumno(base, inactivo) is not None
+
+
+def _creado(con, alumno_id: int, creado: datetime) -> None:
+    with con:
+        con.execute("UPDATE alumnos SET creado = ? WHERE id = ?", (_iso(creado), alumno_id))
+
+
+def test_retencion_borra_los_pedidos_de_acceso_pendientes_de_mas_de_90_dias(settings_tmp, base):
+    vencido = _alumno(base, "vencido@example.com", estado="pendiente")
+    _creado(base, vencido, T0 - timedelta(days=90, minutes=1))
+    dominio.registrar_evento(base, vencido, "inscripcion")
+    reciente = _alumno(base, "reciente@example.com", estado="pendiente")
+    _creado(base, reciente, T0 - timedelta(days=89, hours=23))
+    aprobado_viejo = _alumno(base, "viejo@example.com")
+    _creado(base, aprobado_viejo, T0 - timedelta(days=400))
+    with base:
+        base.execute("UPDATE alumnos SET ultima_actividad = ? WHERE id = ?", (_iso(T0), vencido))
+
+    borrados = tareas.retencion(base, T0)
+
+    assert borrados["pendientes"] == 1
+    assert dominio.alumno(base, vencido) is None
+    assert dominio.alumno(base, reciente) is not None
+    assert dominio.alumno(base, aprobado_viejo) is not None
+    assert base.execute("SELECT count(*) FROM consentimientos WHERE alumno_id = ?", (vencido,)).fetchone()[0] == 0
+    eventos = [tuple(f) for f in base.execute("SELECT alumno_id, tipo FROM eventos ORDER BY id")]
+    assert eventos == [(None, "inscripcion"), (None, "borrado")]
+
+
+def test_la_tarea_periodica_aplica_la_retencion_de_pendientes(settings_tmp, base):
+    vencido = _alumno(base, "vencido@example.com", estado="pendiente")
+    _creado(base, vencido, T0 - timedelta(days=91))
+
+    tareas.correr_una_vez(settings_tmp, T0)
+
+    assert dominio.alumno(base, vencido) is None
 
 
 def _sesion(con, alumno_id: int, modulo: int, inicio: datetime, mensajes: list[datetime]) -> int:

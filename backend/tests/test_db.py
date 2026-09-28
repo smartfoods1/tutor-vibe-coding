@@ -8,7 +8,9 @@ from vibe_tutor import db
 from vibe_tutor.main import crear_app
 
 TABLAS = {
-    "alumnos": ["id", "email", "creado", "ultima_actividad", "herramienta", "sistema", "modulo_actual", "fuente"],
+    "alumnos": [
+        "id", "email", "creado", "ultima_actividad", "herramienta", "sistema", "modulo_actual", "fuente", "estado"
+    ],
     "consentimientos": ["id", "alumno_id", "tipo", "valor", "version_texto", "creado"],
     "codigos": ["id", "email", "hash", "sal", "vence", "intentos", "usado", "ip", "pendiente_json", "creado", "fallos"],
     "avance": ["alumno_id", "modulo", "completado", "resumen", "via"],
@@ -157,21 +159,119 @@ def test_migracion_3_renombra_el_consentimiento_de_las_novedades(tmp_path):
     con.close()
 
 
-def test_una_base_nueva_termina_igual_que_una_migrada(tmp_path):
+def _base_en_la_version_3(ruta):
+    """Una base como las de las instalaciones anteriores a la migración 4 (sin aprobación manual)."""
+    con = db.conectar(ruta)
+    for numero, script in enumerate(db.MIGRACIONES[:3], start=1):
+        con.executescript(f"BEGIN;\n{script}\nPRAGMA user_version = {numero};\nCOMMIT;")
+    return con
+
+
+def _esquema(con):
+    return sorted(
+        (f["type"], f["name"], " ".join((f["sql"] or "").split()))
+        for f in con.execute("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")
+    )
+
+
+@pytest.mark.parametrize("vieja", [_base_en_la_version_2_con_el_nombre_anterior, _base_en_la_version_3])
+def test_una_base_nueva_termina_igual_que_una_migrada(tmp_path, vieja):
     nueva = db.conectar(tmp_path / "nueva.db")
     db.migrar(nueva)
-    migrada = _base_en_la_version_2_con_el_nombre_anterior(tmp_path / "migrada.db")
+    migrada = vieja(tmp_path / "migrada.db")
+    _datos_completos(migrada, _alumno(migrada))
+    migrada.commit()
     db.migrar(migrada)
 
-    def esquema(con):
-        return sorted(
-            (f["type"], f["name"], " ".join((f["sql"] or "").split()))
-            for f in con.execute("SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")
-        )
-
-    assert esquema(nueva) == esquema(migrada)
+    assert _esquema(nueva) == _esquema(migrada)
     nueva.close()
     migrada.close()
+
+
+def _indices(con, tabla: str) -> dict[str, tuple]:
+    """Índices de la tabla: nombre -> (único, parcial, columnas)."""
+    return {
+        f["name"]: (
+            bool(f["unique"]),
+            bool(f["partial"]),
+            tuple(c["name"] for c in con.execute(f"PRAGMA index_info('{f['name']}')")),
+        )
+        for f in con.execute(f"PRAGMA index_list({tabla})")
+    }
+
+
+def test_migracion_4_suma_el_estado_y_los_tipos_nuevos_sin_perder_filas(tmp_path):
+    con = _base_en_la_version_3(tmp_path / "vibe.db")
+    ana = _alumno(con)
+    beto = _alumno(con, "beto@example.com")
+    borrado = _alumno(con, "borrado@example.com")
+    _datos_completos(con, ana)
+    con.executemany(
+        "INSERT INTO mails (alumno_id, tipo, clave, estado, creado) VALUES (?, ?, ?, ?, ?)",
+        [
+            (beto, "bienvenida", "bienvenida", "fallido", "2026-09-27T10:00:00+00:00"),
+            (None, "aviso_80", "aviso_80:2026-09", "enviado", "2026-09-27T11:00:00+00:00"),
+            (beto, "contame", "contame", "enviado", "2026-09-27T12:00:00+00:00"),
+            (borrado, "bienvenida", "bienvenida", "enviado", "2026-09-27T13:00:00+00:00"),
+        ],
+    )
+    con.executemany(
+        "INSERT INTO eventos (alumno_id, tipo, detalle, creado) VALUES (?, ?, ?, ?)",
+        [
+            (beto, "inscripcion", "fuente=hecho-en", "2026-09-27T10:00:00+00:00"),
+            (None, "borrado", None, "2026-09-27T11:00:00+00:00"),
+            (borrado, "inscripcion", None, "2026-09-27T12:00:00+00:00"),
+        ],
+    )
+    # El último mail y el último evento se van con el alumno: sus ids no se tienen que reusar.
+    con.execute("DELETE FROM alumnos WHERE id = ?", (borrado,))
+    con.commit()
+    mails_antes = [tuple(f) for f in con.execute("SELECT * FROM mails ORDER BY id")]
+    eventos_antes = [tuple(f) for f in con.execute("SELECT * FROM eventos ORDER BY id")]
+    ultimo_mail = con.execute("SELECT seq FROM sqlite_sequence WHERE name = 'mails'").fetchone()[0]
+    ultimo_evento = con.execute("SELECT seq FROM sqlite_sequence WHERE name = 'eventos'").fetchone()[0]
+    assert ultimo_mail > max(f[0] for f in mails_antes)
+
+    db.migrar(con)
+
+    assert con.execute("PRAGMA user_version").fetchone()[0] == len(db.MIGRACIONES) >= 4
+    assert [tuple(f) for f in con.execute("SELECT * FROM mails ORDER BY id")] == mails_antes
+    assert [tuple(f) for f in con.execute("SELECT * FROM eventos ORDER BY id")] == eventos_antes
+    assert [f["estado"] for f in con.execute("SELECT estado FROM alumnos ORDER BY id")] == ["aprobado", "aprobado"]
+    for tabla, columnas in TABLAS.items():
+        assert _columnas(con, tabla) == columnas, tabla
+    mails_indices = _indices(con, "mails")
+    assert mails_indices["idx_mails_sin_alumno"] == (True, True, ("clave",))
+    assert (True, False, ("alumno_id", "clave")) in mails_indices.values()
+    assert _indices(con, "eventos")["idx_eventos_tipo"] == (False, False, ("tipo", "creado"))
+    assert con.execute("PRAGMA foreign_key_check").fetchall() == []
+    assert con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+
+    nuevo_mail = "INSERT INTO mails (alumno_id, tipo, clave, estado) VALUES (?, ?, ?, ?)"
+    pedidos = con.execute(nuevo_mail, (None, "pedidos", "pedidos:2026-09-29T10", "enviado")).lastrowid
+    assert pedidos == ultimo_mail + 1
+    with pytest.raises(sqlite3.IntegrityError):
+        con.execute(nuevo_mail, (None, "pedidos", "pedidos:2026-09-29T10", "fallido"))
+    with pytest.raises(sqlite3.IntegrityError):
+        con.execute(nuevo_mail, (beto, "bienvenida", "bienvenida", "enviado"))
+    aprobacion = con.execute("INSERT INTO eventos (alumno_id, tipo) VALUES (?, 'aprobacion')", (beto,)).lastrowid
+    assert aprobacion == ultimo_evento + 1
+    con.execute("UPDATE alumnos SET estado = 'pendiente' WHERE id = ?", (beto,))
+    with pytest.raises(sqlite3.IntegrityError):
+        con.execute("UPDATE alumnos SET estado = 'rechazado' WHERE id = ?", (beto,))
+
+    con.execute("DELETE FROM alumnos WHERE id = ?", (beto,))
+    assert con.execute("SELECT count(*) FROM mails WHERE alumno_id = ?", (beto,)).fetchone()[0] == 0
+    assert con.execute("SELECT count(*) FROM mails WHERE alumno_id IS NULL").fetchone()[0] == 2
+    assert con.execute("SELECT count(*) FROM eventos WHERE alumno_id = ?", (beto,)).fetchone()[0] == 0
+    assert con.execute("SELECT count(*) FROM eventos WHERE alumno_id IS NULL").fetchone()[0] == 4
+    con.close()
+
+
+def test_alumno_nuevo_queda_aprobado_por_defecto(con):
+    alumno_id = _alumno(con)
+
+    assert con.execute("SELECT estado FROM alumnos WHERE id = ?", (alumno_id,)).fetchone()[0] == "aprobado"
 
 
 def test_conectar_wal_filas_y_claves_foraneas(tmp_path):
@@ -237,6 +337,7 @@ def test_mensajes_rol_y_orden(con):
         ("kits", "alumno_id, version_curso, fecha_machete, herramienta, sistema", "1, 'v', 'f', 'codex', 'otro'"),
         ("mails", "alumno_id, tipo, clave, estado", "1, 'spam', 'k', 'enviado'"),
         ("eventos", "tipo", "'otro'"),
+        ("alumnos", "email, estado", "'b@x.com', 'rechazado'"),
     ],
 )
 def test_valores_permitidos(con, tabla, columnas, valores):

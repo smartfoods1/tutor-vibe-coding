@@ -4,6 +4,8 @@
  * - Todos los pedidos van con credentials "same-origin" (la cookie de sesión es HttpOnly).
  * - Los errores salen como ErrorApi con el campo "detalle" del servidor, listo para mostrar.
  * - Un 401 en un pedido privado llama al manejador de alNoAutorizado (la app lleva a /entrar).
+ * - Un 403 con estado "pendiente" (la cuenta espera que quien administra la apruebe) sale como
+ *   ErrorPendiente y llama al manejador de alPendiente (la app muestra la pantalla del pedido).
  */
 
 const MENSAJE_GENERAL = 'Algo falló de nuestro lado. Probá de nuevo en un rato.'
@@ -21,11 +23,32 @@ export class ErrorApi extends Error {
   }
 }
 
+/**
+ * La cuenta existe pero todavía no la aprobó quien administra el curso (APROBACION_MANUAL): el
+ * servidor responde 403 {"detalle", "estado": "pendiente"}. No es una falla para reintentar.
+ */
+export class ErrorPendiente extends ErrorApi {
+  constructor(detalle: string, datos: unknown = null) {
+    super(403, detalle, datos)
+    this.name = 'ErrorPendiente'
+  }
+}
+
+export function esPendiente(error: unknown): error is ErrorPendiente {
+  return error instanceof ErrorPendiente
+}
+
 let manejador401: (() => void) | null = null
+let manejadorPendiente: (() => void) | null = null
 
 /** Registra qué hacer cuando la sesión venció (o null para sacarlo). */
 export function alNoAutorizado(fn: (() => void) | null): void {
   manejador401 = fn
+}
+
+/** Registra qué hacer cuando un pedido responde que la cuenta está pendiente (o null para sacarlo). */
+export function alPendiente(fn: (() => void) | null): void {
+  manejadorPendiente = fn
 }
 
 export interface Opciones {
@@ -74,19 +97,23 @@ async function leerCuerpo(respuesta: Response): Promise<unknown> {
   }
 }
 
-async function comoError(respuesta: Response): Promise<ErrorApi> {
+const MENSAJE_PENDIENTE = 'Tu pedido de acceso está pendiente. Te avisamos por mail cuando esté aprobado.'
+
+async function comoError(respuesta: Response, publico = false): Promise<ErrorApi> {
   const datos = await leerCuerpo(respuesta)
-  const detalle =
-    datos && typeof datos === 'object' && typeof (datos as { detalle?: unknown }).detalle === 'string'
-      ? (datos as { detalle: string }).detalle
-      : MENSAJE_GENERAL
-  return new ErrorApi(respuesta.status, detalle, datos)
+  const cuerpo = datos && typeof datos === 'object' ? (datos as { detalle?: unknown; estado?: unknown }) : null
+  const detalle = typeof cuerpo?.detalle === 'string' ? cuerpo.detalle : null
+  if (respuesta.status === 403 && cuerpo?.estado === 'pendiente') {
+    if (!publico) manejadorPendiente?.()
+    return new ErrorPendiente(detalle ?? MENSAJE_PENDIENTE, datos)
+  }
+  return new ErrorApi(respuesta.status, detalle ?? MENSAJE_GENERAL, datos)
 }
 
 /** Pedido JSON. Devuelve el cuerpo ya leído o levanta ErrorApi. */
 export async function pedir<T>(ruta: string, opciones: Opciones = {}): Promise<T> {
   const respuesta = await llamar(ruta, opciones)
-  if (!respuesta.ok) throw await comoError(respuesta)
+  if (!respuesta.ok) throw await comoError(respuesta, opciones.publico)
   return (await leerCuerpo(respuesta)) as T
 }
 
@@ -205,6 +232,8 @@ export interface Config {
   newsletter?: string | null
   /** MODO_DEMO: el tutor sigue un guion fijo, sin IA ni voz. */
   modo_demo?: boolean
+  /** APROBACION_MANUAL: cada inscripción nueva espera que quien administra la apruebe. */
+  aprobacion_manual?: boolean
 }
 
 export interface Consentimientos {
@@ -232,8 +261,20 @@ export interface Audio {
   transcripcion?: string | null
 }
 
+/** "pendiente": se anotó y espera que quien administra la apruebe (APROBACION_MANUAL). */
+export type EstadoCuenta = 'pendiente' | 'aprobado'
+
+export interface Verificacion {
+  ok: boolean
+  nuevo: boolean
+  /** Sin el campo (servidor viejo), la cuenta está aprobada. */
+  estado?: EstadoCuenta
+}
+
 export interface Yo {
   email: string
+  /** Sin el campo (servidor viejo), la cuenta está aprobada. */
+  estado?: EstadoCuenta
   modulo_actual: number
   avance: { modulo: number; completado: string; via: string }[]
   idea: { version: number; actualizada: string } | null
@@ -242,6 +283,11 @@ export interface Yo {
   consentimientos: { mails_curso: boolean; novedades: boolean }
   audios: Audio[]
   es_admin?: boolean
+}
+
+/** La cuenta espera la aprobación de quien administra: no usa el tutor ni el resto del curso. */
+export function cuentaPendiente(yo: Pick<Yo, 'estado'> | null | undefined): boolean {
+  return yo?.estado === 'pendiente'
 }
 
 export type Alcance = 'alumno' | 'mes'
@@ -306,6 +352,14 @@ export interface LinkPorAprobar {
   mostrar_galeria: boolean
   aprobado: boolean
   creado: string
+}
+
+/** Una cuenta que espera aprobación (GET /admin/pedidos, los más viejos primero). */
+export interface PedidoAcceso {
+  id: number
+  email: string
+  creado: string
+  fuente: string | null
 }
 
 export type EventoTurno =
@@ -464,7 +518,7 @@ export const api = {
     return pedir<{ ok: boolean }>('/api/auth/codigo', { metodo: 'POST', cuerpo, publico: true })
   },
   verificar: (email: string, codigo: string) =>
-    pedir<{ ok: boolean; nuevo: boolean }>('/api/auth/verificar', {
+    pedir<Verificacion>('/api/auth/verificar', {
       metodo: 'POST',
       cuerpo: { email, codigo },
       publico: true,
@@ -514,4 +568,9 @@ export const api = {
     pedir<unknown>(`/api/admin/links/${id}`, { metodo: 'PUT', cuerpo: { aprobado } }),
   /** CSV con una columna, email: quienes aceptaron las novedades (para importar en el newsletter). */
   descargarNovedades: () => descargar('/api/admin/novedades.csv', 'novedades.csv'),
+  pedidosDeAcceso: () => pedir<PedidoAcceso[]>('/api/admin/pedidos'),
+  /** Aprueba la cuenta: el servidor le manda la bienvenida. */
+  aprobarPedido: (id: number) => pedir<{ ok: boolean }>(`/api/admin/pedidos/${id}/aprobar`, { metodo: 'POST' }),
+  /** Rechaza el pedido: el servidor borra la cuenta pendiente con sus datos. */
+  rechazarPedido: (id: number) => pedir<{ ok: boolean }>(`/api/admin/pedidos/${id}`, { metodo: 'DELETE' }),
 }

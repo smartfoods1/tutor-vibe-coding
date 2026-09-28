@@ -2,10 +2,11 @@
 
 Cada mail sale una sola vez por (alumno_id, clave). El alumno recibe como mucho tres mails del
 curso en toda su vida: bienvenida, recordatorio y contame, cada uno una sola vez (el contame sale
-con el primer link que registra, clave "contame"). Los del curso respetan la baja (`mails_curso`)
-y llevan el pie legal con el link de baja y las cabeceras de baja en un clic (RFC 8058). El aviso
-del 80% va a quien administra el curso (ADMIN_EMAIL) y no tiene baja. En el modo demo ningún mail
-sale: se registra en el log el asunto y el destinatario.
+con el primer link que registra, clave "contame"). Los del curso respetan la baja (`mails_curso`),
+van solo a alumnos aprobados (con APROBACION_MANUAL, la bienvenida sale al aprobar) y llevan el pie
+legal con el link de baja y las cabeceras de baja en un clic (RFC 8058). El aviso del 80% y el de
+pedidos de acceso van a quien administra el curso (ADMIN_EMAIL) y no tienen baja. En el modo demo
+ningún mail sale: se registra en el log el asunto y el destinatario.
 """
 
 import base64
@@ -27,12 +28,15 @@ from vibe_tutor.config import Settings, get_settings
 RESEND_URL = "https://api.resend.com/emails"
 PIE_LEGAL = "legal/pie-mails.md"
 CON_BAJA = frozenset({"bienvenida", "recordatorio", "contame"})
+# Avisos a quien administra el curso: van a ADMIN_EMAIL, sin alumno, sin pie legal ni baja.
+PARA_ADMIN = frozenset({"aviso_80", "pedidos"})
 _COMUNES = frozenset({"ENLACE_CURSO", "ENLACE_MODULO_3"}) | contenido.MARCADORES_DEL_CURSO
 MARCADORES: dict[str, frozenset[str]] = {
     "bienvenida": _COMUNES | {"ENLACE_BAJA"},
     "recordatorio": _COMUNES | {"ENLACE_BAJA"},
     "contame": _COMUNES | {"ENLACE_BAJA", "LINK_ALUMNO", "TITULO_LINK"},
     "aviso_80": _COMUNES | {"GASTO_MES", "TOPE_MES", "ALUMNOS_ACTIVOS", "ENLACE_REPORTE"},
+    "pedidos": _COMUNES | {"PENDIENTES", "ENLACE_ADMIN"},
 }
 # Nombres que usan quienes llaman a enviar() para los datos del link (alumnos.py manda link y titulo).
 _ALIAS = {"LINK": "LINK_ALUMNO", "URL": "LINK_ALUMNO", "TITULO": "TITULO_LINK"}
@@ -57,6 +61,12 @@ def ahora() -> datetime:
 
 def _iso(momento: datetime) -> str:
     return momento.astimezone(timezone.utc).strftime(costos.FORMATO_UTC)
+
+
+def clave_pedidos(momento: datetime) -> str:
+    """Clave del aviso de pedidos de acceso: una por hora de Argentina (`pedidos:AAAA-MM-DDTHH`),
+    así sale como mucho un aviso por hora aunque lleguen muchos pedidos."""
+    return f"pedidos:{momento.astimezone(costos.ZONA_ARGENTINA):%Y-%m-%dT%H}"
 
 
 def _abrir(settings: Settings) -> sqlite3.Connection:
@@ -99,7 +109,9 @@ def _dinero(valor: float) -> str:
 
 def _alumnos_activos_del_mes(con: sqlite3.Connection, momento: datetime) -> int:
     inicio = momento.astimezone(costos.ZONA_ARGENTINA).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    return con.execute("SELECT count(*) FROM alumnos WHERE ultima_actividad >= ?", (_iso(inicio),)).fetchone()[0]
+    return con.execute(
+        "SELECT count(*) FROM alumnos WHERE ultima_actividad >= ? AND estado = ?", (_iso(inicio), dominio.APROBADO)
+    ).fetchone()[0]
 
 
 def _link(con: sqlite3.Connection, alumno_id: int, clave: str) -> sqlite3.Row | None:
@@ -133,6 +145,10 @@ def _valores(
         valores["TOPE_MES"] = _dinero(settings.tope_mensual_usd)
         valores["ALUMNOS_ACTIVOS"] = str(_alumnos_activos_del_mes(con, momento))
         valores["ENLACE_REPORTE"] = f"{base}/admin"
+    if tipo == "pedidos":
+        # Sin datos (el reintento de la tarea periódica), la cuenta sale de la base.
+        valores["PENDIENTES"] = str(dominio.contar_pendientes(con))
+        valores["ENLACE_ADMIN"] = f"{base}/admin"
     for nombre, valor in (datos or {}).items():
         if valor is not None:
             nombre = str(nombre).upper()
@@ -269,7 +285,7 @@ async def _enviar(settings: Settings, alumno_id: int | None, tipo: str, clave: s
     if tipo not in MARCADORES:
         log.error("tipo de mail desconocido: %s", tipo)
         return "fallido"
-    if tipo == "aviso_80":
+    if tipo in PARA_ADMIN:
         alumno_id = None
     elif alumno_id is None:
         log.error("el mail %s necesita un alumno", tipo)
@@ -285,7 +301,9 @@ async def _enviar(settings: Settings, alumno_id: int | None, tipo: str, clave: s
             destinatario = settings.admin_email
         else:
             fila = dominio.alumno(con, alumno_id)
-            if fila is None or not dominio.consentimiento(con, alumno_id, "mails_curso"):
+            if fila is None or fila["estado"] != dominio.APROBADO:
+                return "omitido"
+            if not dominio.consentimiento(con, alumno_id, "mails_curso"):
                 return "omitido"
             if tipo == "contame" and (_contame_enviado(con, alumno_id) or _link(con, alumno_id, clave) is None):
                 return "omitido"
@@ -310,7 +328,8 @@ async def enviar(
 ) -> str:
     """Manda un mail del curso una sola vez por (alumno_id, clave) y devuelve el estado.
 
-    Abre su propia conexión a la base, respeta la baja (`mails_curso`) salvo en `aviso_80`,
+    Abre su propia conexión a la base, respeta la baja (`mails_curso`) y manda solo a alumnos
+    aprobados, salvo en los avisos a quien administra (`aviso_80` y `pedidos`, sin alumno),
     registra el resultado en `mails` y nunca levanta excepciones: devuelve "enviado",
     "fallido" u "omitido". El contame (clave CLAVE_CONTAME) sale una sola vez en la vida del
     alumno y solo si tiene un link registrado. `datos` puede traer valores de marcadores (por

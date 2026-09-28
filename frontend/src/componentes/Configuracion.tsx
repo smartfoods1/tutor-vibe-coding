@@ -11,6 +11,8 @@ export interface DatosConfig {
   newsletter: string | null
   /** MODO_DEMO: el tutor responde con un guion fijo, sin IA, y la voz queda apagada. */
   modoDemo: boolean
+  /** APROBACION_MANUAL: cada inscripción nueva espera que quien administra la apruebe. */
+  aprobacionManual: boolean
 }
 
 export interface ConfigApp extends DatosConfig {
@@ -28,6 +30,7 @@ export function leerConfig(datos: unknown): DatosConfig {
     autorNombre: texto(d.autor_nombre),
     newsletter: texto(d.newsletter),
     modoDemo: d.modo_demo === true,
+    aprobacionManual: d.aprobacion_manual === true,
   }
 }
 

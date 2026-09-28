@@ -48,6 +48,7 @@ MENSAJE_TRANSFERENCIA = (
 )
 MENSAJE_CODIGO = "El código no es válido o ya venció. Pedí uno nuevo."
 MENSAJE_OTRO_SITIO = "Este pedido no salió de la página del curso. Abrí el curso desde su dirección y probá de nuevo."
+MENSAJE_PENDIENTE = "Tu pedido de acceso está pendiente. Te avisamos por mail cuando esté aprobado."
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -58,6 +59,9 @@ class Alumno:
     id: int
     email: str
     es_admin: bool
+    # "pendiente" mientras espera que quien administra apruebe su inscripción (APROBACION_MANUAL);
+    # quien administra siempre cuenta como "aprobado".
+    estado: str = dominio.APROBADO
 
 
 class Consentimientos(BaseModel):
@@ -97,6 +101,10 @@ def conexion(settings: Settings = Depends(get_settings)) -> Iterator[sqlite3.Con
         yield con
     finally:
         con.close()
+
+
+def _es_admin(settings: Settings, email: str) -> bool:
+    return email == dominio.normalizar_email(settings.admin_email)
 
 
 def _ip(request: Request) -> str:
@@ -294,7 +302,22 @@ def alumno_actual(
     if fila is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Tu sesión venció. Entrá de nuevo con tu mail.")
     email = fila["email"]
-    return Alumno(id=fila["id"], email=email, es_admin=email == dominio.normalizar_email(settings.admin_email))
+    es_admin = _es_admin(settings, email)
+    estado = dominio.APROBADO if es_admin else fila["estado"]
+    return Alumno(id=fila["id"], email=email, es_admin=es_admin, estado=estado)
+
+
+def alumno_aprobado(alumno: Alumno = Depends(alumno_actual)) -> Alumno:
+    """Como alumno_actual, pero quien espera aprobación recibe 403 con el estado "pendiente".
+
+    La usan todas las rutas del alumno salvo /yo, /mis-datos, /consentimientos y la salida: quien
+    espera puede ver su estado, bajar o borrar sus datos y cambiar sus permisos.
+    """
+    if alumno.estado == dominio.PENDIENTE:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, {"detalle": MENSAJE_PENDIENTE, "estado": dominio.PENDIENTE}
+        )
+    return alumno
 
 
 class AntiCSRF:
@@ -352,12 +375,12 @@ async def pedir_codigo(
     return {"ok": True}
 
 
-def _alta(con: sqlite3.Connection, settings: Settings, email: str, pendiente: dict) -> int:
+def _alta(con: sqlite3.Connection, settings: Settings, email: str, pendiente: dict, estado: str) -> int:
     consentimientos = dict(pendiente.get("consentimientos") or {})
     if not settings.hay_newsletter:
         consentimientos["novedades"] = False  # sin newsletter no hay casilla que aceptar
     fuente = pendiente.get("fuente")
-    alumno_id = dominio.crear_alumno(con, email, fuente=fuente)
+    alumno_id = dominio.crear_alumno(con, email, fuente=fuente, estado=estado)
     version = contenido.version_legal(settings.contenido_dir)
     for tipo in ("mails_curso", "transferencia", "novedades"):
         dominio.agregar_consentimiento(con, alumno_id, tipo, bool(consentimientos.get(tipo)), version)
@@ -383,17 +406,26 @@ def verificar(
     if pendiente is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, MENSAJE_CODIGO)
     existente = dominio.alumno_por_email(con, email)
+    es_admin = _es_admin(settings, email)
     if existente is not None:
         alumno_id = int(existente["id"])
+        estado = existente["estado"]
     else:
         consentimientos = pendiente.get("consentimientos") or {}
         if not (consentimientos.get("mails_curso") and consentimientos.get("transferencia")):
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, MENSAJE_CODIGO)
-        alumno_id = _alta(con, settings, email, pendiente)
-        tareas.add_task(mails.enviar, settings, alumno_id, "bienvenida", "bienvenida")
+        # Con la aprobación manual, quien llega queda esperando (salvo quien administra): sin
+        # bienvenida, con un aviso a quien administra que sale como mucho una vez por hora.
+        estado = dominio.PENDIENTE if settings.aprobacion_manual and not es_admin else dominio.APROBADO
+        alumno_id = _alta(con, settings, email, pendiente, estado)
+        if estado == dominio.APROBADO:
+            tareas.add_task(mails.enviar, settings, alumno_id, "bienvenida", "bienvenida")
+        else:
+            datos = {"pendientes": dominio.contar_pendientes(con)}
+            tareas.add_task(mails.enviar, settings, None, "pedidos", mails.clave_pedidos(ahora()), datos)
     dominio.tocar_actividad(con, alumno_id)
     poner_cookie(response, settings, alumno_id)
-    return {"ok": True, "nuevo": existente is None}
+    return {"ok": True, "nuevo": existente is None, "estado": dominio.APROBADO if es_admin else estado}
 
 
 @router.post("/salir")

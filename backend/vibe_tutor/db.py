@@ -171,6 +171,48 @@ MIGRACIONES = (
     ALTER TABLE consentimientos_nueva RENAME TO consentimientos;
     CREATE INDEX idx_consentimientos_alumno ON consentimientos (alumno_id, tipo, id);
     """,
+    # 4: aprobación manual de las inscripciones (APROBACION_MANUAL). Cada alumno tiene un estado
+    # (los que ya existían quedan aprobados), los mails suman el aviso de pedidos a quien administra
+    # y los eventos, la aprobación. Para cambiar los CHECK se recrean mails y eventos como en la 3:
+    # mismas filas, ids, fechas e índices, y el contador de ids sigue donde estaba (así no se
+    # reusan los ids de filas que se borraron con su alumno).
+    f"""
+    ALTER TABLE alumnos ADD COLUMN estado TEXT NOT NULL DEFAULT 'aprobado'
+        CHECK (estado IN ('pendiente', 'aprobado'));
+
+    CREATE TABLE mails_nueva (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        alumno_id INTEGER REFERENCES alumnos (id) ON DELETE CASCADE,
+        tipo TEXT NOT NULL CHECK (tipo IN ('bienvenida', 'recordatorio', 'contame', 'aviso_80', 'pedidos')),
+        clave TEXT NOT NULL,
+        estado TEXT NOT NULL CHECK (estado IN ('enviado', 'fallido')),
+        creado TEXT NOT NULL DEFAULT {AHORA_UTC},
+        UNIQUE (alumno_id, clave)
+    );
+    INSERT INTO mails_nueva (id, alumno_id, tipo, clave, estado, creado)
+        SELECT id, alumno_id, tipo, clave, estado, creado FROM mails ORDER BY id;
+    DELETE FROM sqlite_sequence WHERE name = 'mails_nueva';
+    INSERT INTO sqlite_sequence (name, seq) SELECT 'mails_nueva', seq FROM sqlite_sequence WHERE name = 'mails';
+    DROP TABLE mails;
+    ALTER TABLE mails_nueva RENAME TO mails;
+    CREATE UNIQUE INDEX idx_mails_sin_alumno ON mails (clave) WHERE alumno_id IS NULL;
+
+    CREATE TABLE eventos_nueva (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        alumno_id INTEGER REFERENCES alumnos (id) ON DELETE SET NULL,
+        tipo TEXT NOT NULL
+            CHECK (tipo IN ('inscripcion', 'modulo_completo', 'kit', 'link', 'baja_mails', 'borrado', 'aprobacion')),
+        detalle TEXT,
+        creado TEXT NOT NULL DEFAULT {AHORA_UTC}
+    );
+    INSERT INTO eventos_nueva (id, alumno_id, tipo, detalle, creado)
+        SELECT id, alumno_id, tipo, detalle, creado FROM eventos ORDER BY id;
+    DELETE FROM sqlite_sequence WHERE name = 'eventos_nueva';
+    INSERT INTO sqlite_sequence (name, seq) SELECT 'eventos_nueva', seq FROM sqlite_sequence WHERE name = 'eventos';
+    DROP TABLE eventos;
+    ALTER TABLE eventos_nueva RENAME TO eventos;
+    CREATE INDEX idx_eventos_tipo ON eventos (tipo, creado);
+    """,
 )
 
 

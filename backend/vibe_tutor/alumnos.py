@@ -1,6 +1,8 @@
 """Endpoints del alumno (contracts/api.md): estado, guía escrita, idea, taller, kit, links y datos.
 
-Las sesiones con el tutor viven en api.py y la baja de mails en mails.py.
+Las sesiones con el tutor viven en api.py y la baja de mails en mails.py. Con APROBACION_MANUAL,
+quien espera aprobación solo llega a /yo, /mis-datos y /consentimientos (con `alumno_actual`); el
+resto usa `alumno_aprobado`, que le responde 403 con el estado "pendiente".
 """
 
 import json
@@ -17,7 +19,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from vibe_tutor import api, auth, contenido, costos, dominio, kit, mails
-from vibe_tutor.auth import Alumno, alumno_actual, conexion
+from vibe_tutor.auth import Alumno, alumno_actual, alumno_aprobado, conexion
 from vibe_tutor.config import Settings, get_settings
 
 MODULOS_WEB = (1, 2, 3)
@@ -259,6 +261,7 @@ def yo(
         "tope": {"bloqueado": tope["bloqueado"], "alcance": tope["alcance"]},
         "consentimientos": _consentimientos(con, alumno.id),
         "audios": [audio for n in MODULOS_AUDIO if (audio := _audio(settings.contenido_dir, n))],
+        "estado": alumno.estado,
     }
 
 
@@ -268,7 +271,7 @@ def yo(
 @router.get("/modulos/{n}/guia")
 def guia(
     n: int,
-    alumno: Alumno = Depends(alumno_actual),
+    alumno: Alumno = Depends(alumno_aprobado),
     settings: Settings = Depends(get_settings),
     con: sqlite3.Connection = Depends(conexion),
 ) -> dict:
@@ -322,7 +325,7 @@ def _datos_del_dia(settings: Settings, fila: sqlite3.Row) -> str:
 
 @router.post("/modulos/{n}/completar")
 def completar(
-    n: int, alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection = Depends(conexion)
+    n: int, alumno: Alumno = Depends(alumno_aprobado), con: sqlite3.Connection = Depends(conexion)
 ) -> dict:
     _modulo_abierto(con, alumno, n)
     try:
@@ -344,7 +347,7 @@ def _idea_o_404(con: sqlite3.Connection, alumno: Alumno) -> sqlite3.Row:
 
 
 @router.get("/idea")
-def ver_idea(alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection = Depends(conexion)) -> dict:
+def ver_idea(alumno: Alumno = Depends(alumno_aprobado), con: sqlite3.Connection = Depends(conexion)) -> dict:
     dominio.tocar_actividad(con, alumno.id)
     idea = _idea_o_404(con, alumno)
     return {campo: idea[campo] for campo in ("version", "texto_md", "que_sigue_md", "autor", "creado")}
@@ -352,7 +355,7 @@ def ver_idea(alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection = 
 
 @router.put("/idea")
 def editar_idea(
-    datos: IdeaNueva, alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection = Depends(conexion)
+    datos: IdeaNueva, alumno: Alumno = Depends(alumno_aprobado), con: sqlite3.Connection = Depends(conexion)
 ) -> dict:
     try:
         version = dominio.guardar_idea(con, alumno.id, datos.texto_md, datos.que_sigue_md, "alumno")
@@ -364,7 +367,7 @@ def editar_idea(
 
 @router.get("/idea/plantilla")
 def plantilla_idea(
-    alumno: Alumno = Depends(alumno_actual), settings: Settings = Depends(get_settings)
+    alumno: Alumno = Depends(alumno_aprobado), settings: Settings = Depends(get_settings)
 ) -> dict:
     """La plantilla de "mi idea en una página" (contenido/web/plantilla-idea.md, sin frontmatter)."""
     _, cuerpo = _leer_md(settings.contenido_dir, "web/plantilla-idea.md", MENSAJE_PLANTILLA)
@@ -372,7 +375,7 @@ def plantilla_idea(
 
 
 @router.get("/idea.md")
-def descargar_idea(alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection = Depends(conexion)) -> Response:
+def descargar_idea(alumno: Alumno = Depends(alumno_aprobado), con: sqlite3.Connection = Depends(conexion)) -> Response:
     idea = _idea_o_404(con, alumno)
     dominio.tocar_actividad(con, alumno.id)
     return _descarga(kit.mi_idea(idea["texto_md"], idea["que_sigue_md"]), "text/markdown", "mi-idea.md")
@@ -383,7 +386,7 @@ def descargar_idea(alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connect
 
 @router.put("/taller")
 def elegir_taller(
-    datos: Taller, alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection = Depends(conexion)
+    datos: Taller, alumno: Alumno = Depends(alumno_aprobado), con: sqlite3.Connection = Depends(conexion)
 ) -> dict:
     cambios = datos.model_dump(exclude_unset=True)
     if not cambios:
@@ -400,7 +403,7 @@ def elegir_taller(
 
 @router.get("/kit")
 def bajar_kit(
-    alumno: Alumno = Depends(alumno_actual),
+    alumno: Alumno = Depends(alumno_aprobado),
     settings: Settings = Depends(get_settings),
     con: sqlite3.Connection = Depends(conexion),
 ) -> Response:
@@ -466,7 +469,7 @@ def _link_propio(con: sqlite3.Connection, alumno: Alumno, link_id: int) -> sqlit
 def registrar_link(
     datos: NuevoLink,
     tareas: BackgroundTasks,
-    alumno: Alumno = Depends(alumno_actual),
+    alumno: Alumno = Depends(alumno_aprobado),
     settings: Settings = Depends(get_settings),
     con: sqlite3.Connection = Depends(conexion),
 ) -> dict:
@@ -494,7 +497,7 @@ def registrar_link(
 
 
 @router.get("/links")
-def mis_links(alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection = Depends(conexion)) -> list[dict]:
+def mis_links(alumno: Alumno = Depends(alumno_aprobado), con: sqlite3.Connection = Depends(conexion)) -> list[dict]:
     filas = con.execute(f"SELECT {_COLUMNAS_LINK} FROM links WHERE alumno_id = ? ORDER BY id", (alumno.id,))
     return [link_json(fila) for fila in filas]
 
@@ -503,7 +506,7 @@ def mis_links(alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection =
 def cambiar_link(
     link_id: int,
     datos: CambioLink,
-    alumno: Alumno = Depends(alumno_actual),
+    alumno: Alumno = Depends(alumno_aprobado),
     con: sqlite3.Connection = Depends(conexion),
 ) -> dict:
     _link_propio(con, alumno, link_id)
@@ -519,7 +522,7 @@ def cambiar_link(
 
 @router.delete("/links/{link_id}")
 def borrar_link(
-    link_id: int, alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection = Depends(conexion)
+    link_id: int, alumno: Alumno = Depends(alumno_aprobado), con: sqlite3.Connection = Depends(conexion)
 ) -> dict:
     _link_propio(con, alumno, link_id)
     with con:
@@ -571,7 +574,9 @@ def mis_datos(alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection =
         "exportado": _ahora(),
         "alumno": {
             campo: fila[campo]
-            for campo in ("email", "creado", "ultima_actividad", "herramienta", "sistema", "modulo_actual", "fuente")
+            for campo in (
+                "email", "creado", "ultima_actividad", "herramienta", "sistema", "modulo_actual", "fuente", "estado"
+            )
         },
         "consentimientos": [
             {**c, "valor": bool(c["valor"])}

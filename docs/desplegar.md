@@ -131,6 +131,12 @@ Dos que **nunca** van en producción: `MODO_DEMO=true` y `DEV_CODIGO_FIJO`.
 Mientras pruebes con pocas personas, la web muestra arriba «Versión de prueba: el curso todavía no
 se lanzó». El día que abras la inscripción, sumá `AVISO_PRUEBA=false` y reiniciá el servicio.
 
+Si querés decidir a mano quién entra (por ejemplo, en un piloto chico o para que el link no se
+viralice y se lleve el presupuesto), sumá `APROBACION_MANUAL=true`. Cada persona que se inscribe
+queda pendiente y no usa el tutor hasta que la aprobás en `/admin`, en "Pedidos de acceso"; te
+llega un mail de aviso como mucho una vez por hora. Al aprobar le sale la bienvenida; al rechazar
+se borran sus datos. Los pendientes que nadie aprueba se borran solos a los 90 días.
+
 Cuando cambies este archivo con el servicio andando: `sudo systemctl restart vibe-tutor`.
 
 El nombre del curso no va en el servidor: se toma de `frontend/.env` en tu compu cuando

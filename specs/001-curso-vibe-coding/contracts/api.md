@@ -14,6 +14,17 @@ Convenciones:
   `auth.instalar_csrf(app)`). Sin la cabecera (clientes que no son un navegador, como la baja en un
   clic de los proveedores de mail) el pedido pasa. Las lecturas (`GET`) no se miran.
 - **Admin**: la sesión de un mail igual a `ADMIN_EMAIL`. Si no es admin: `403`.
+- **Aprobación manual** (`APROBACION_MANUAL=true`, apagada por defecto): cada alumno tiene un
+  `estado`, `pendiente` o `aprobado`. Con la aprobación manual, quien verifica su mail por primera
+  vez queda `pendiente` hasta que quien administra lo aprueba (salvo `ADMIN_EMAIL`, que entra
+  `aprobado`); sin ella, todos entran `aprobado`. Quien administra siempre cuenta como `aprobado`.
+  Una sesión `pendiente` solo llega a `GET /yo`, `GET` y `DELETE /mis-datos`,
+  `PUT /consentimientos`, `POST /auth/salir` y las rutas públicas (legal, galería, config, baja);
+  en todas las demás rutas del alumno (módulos, sesiones y turnos del tutor, idea, taller, kit,
+  links y voz) responde `403 {"detalle": "Tu pedido de acceso está pendiente. Te avisamos por mail
+  cuando esté aprobado.", "estado": "pendiente"}` (dependencia `auth.alumno_aprobado`). El chequeo
+  mira el estado guardado, no la configuración: si se apaga `APROBACION_MANUAL`, los pendientes
+  siguen esperando hasta que se los aprueba.
 - **Errores**: `{"detalle": "<mensaje en voseo para mostrar>"}` con el código HTTP que corresponda.
 - **Tope**: cuando el tutor está bloqueado por tope, los endpoints del tutor responden `402` con
   `{"detalle": "tope", "alcance": "alumno" | "mes", "guia": "/api/modulos/<n>/guia"}`.
@@ -25,9 +36,16 @@ Convenciones:
 | Método y ruta | Acceso | Respuesta |
 |---|---|---|
 | `GET /salud` | público | `200 {"ok": true}` |
-| `GET /config` | público | `200 {"turnstile_site_key": "..." \| null, "aviso_prueba": true \| false, "autor_nombre": "..." \| null, "newsletter": "..." \| null, "modo_demo": true \| false}`: lo que la web necesita antes de que haya sesión. `autor_nombre` sale de `AUTOR_NOMBRE` y `newsletter` de `NEWSLETTER_NOMBRE` (vacíos: `null`; sin newsletter, la web no muestra la casilla de novedades); `modo_demo` es `MODO_DEMO` (el tutor responde con un guion fijo sin llamar a Claude y la voz queda apagada) |
+| `GET /config` | público | `200 {"turnstile_site_key": "..." \| null, "aviso_prueba": true \| false, "autor_nombre": "..." \| null, "newsletter": "..." \| null, "modo_demo": true \| false, "aprobacion_manual": true \| false}`: lo que la web necesita antes de que haya sesión. `autor_nombre` sale de `AUTOR_NOMBRE` y `newsletter` de `NEWSLETTER_NOMBRE` (vacíos: `null`; sin newsletter, la web no muestra la casilla de novedades); `modo_demo` es `MODO_DEMO` (el tutor responde con un guion fijo sin llamar a Claude y la voz queda apagada); `aprobacion_manual` es `APROBACION_MANUAL` (quien administra aprueba cada inscripción) |
 | `GET /legal/privacidad` | público | `200 {"version", "titulo", "texto_md"}` del aviso de privacidad, con `{{AUTOR}}` y `{{NEWSLETTER}}` ya reemplazados; si falta, `404` amable |
 | `GET /legal/consentimientos` | público | `200 {"version", "textos": {"mails_curso", "transferencia", "novedades"}, "texto_md"}` con `{{AUTOR}}` y `{{NEWSLETTER}}` ya reemplazados; si falta, `404` amable |
+
+Los dos textos legales resuelven sus bloques condicionales antes de servirse: lo que está entre
+`{{#NEWSLETTER}}` y `{{/NEWSLETTER}}` se muestra solo si hay newsletter, y lo que está entre
+`{{#APROBACION}}` y `{{/APROBACION}}` (que el acceso lo aprueba quien administra, que mientras
+está pendiente la cuenta no usa el tutor, que si no se aprueba los datos se borran a mano o a los
+90 días y que la bienvenida llega al aprobar), solo con `APROBACION_MANUAL`. Versión vigente de los
+dos: `2026-09-29`.
 
 ## Inscripción y acceso (FR-001 a FR-004)
 
@@ -59,8 +77,14 @@ Convenciones:
 ```
 
 - Válido: crea el alumno si no existe (con sus consentimientos y fuente), registra el evento
-  `inscripcion`, encola el mail de bienvenida la primera vez, setea la cookie y responde
-  `200 {"ok": true, "nuevo": true | false}`.
+  `inscripcion`, setea la cookie y responde `200 {"ok": true, "nuevo": true | false, "estado":
+  "pendiente" | "aprobado"}`.
+- Sin `APROBACION_MANUAL`, el alumno nuevo queda `aprobado` y se encola el mail de bienvenida.
+- Con `APROBACION_MANUAL`, el alumno nuevo queda `pendiente` (salvo `ADMIN_EMAIL`, que queda
+  `aprobado` y recibe la bienvenida): no se manda la bienvenida y se encola el aviso a quien
+  administra, `mails.enviar(settings, None, "pedidos", "pedidos:<AAAA-MM-DDTHH>", {"pendientes": n})`
+  con la hora de Argentina en la clave, así sale como mucho uno por hora (ver [mails.md](mails.md)).
+- Quien ya existía entra con el estado que tiene (`nuevo: false`), sin mails ni avisos.
 - Inválido o vencido: `401`. Cada código admite 5 intentos.
 - Tope de fallos por mail: cada intento errado suma un fallo al código (`codigos.fallos`). Si los
   códigos de ese mail creados en las últimas 24 horas suman más de 10 fallos, ningún código de ese
@@ -85,9 +109,14 @@ Borra la cookie. `200 {"ok": true}`.
   "taller": {"herramienta": null, "sistema": null},
   "tope": {"bloqueado": false, "alcance": null},
   "consentimientos": {"mails_curso": true, "novedades": false},
-  "audios": [{"modulo": 1, "url": "/audios/modulo-1.mp3", "transcripcion": "/audios/modulo-1.md"}]
+  "audios": [{"modulo": 1, "url": "/audios/modulo-1.mp3", "transcripcion": "/audios/modulo-1.md"}],
+  "estado": "aprobado"
 }
 ```
+
+`estado` es `pendiente` mientras quien administra no aprobó la inscripción (ver Aprobación manual
+en las convenciones); quien administra siempre ve `aprobado`. `/yo` responde también a una sesión
+`pendiente`.
 
 ## Módulos 1 a 3 (FR-005 a FR-012)
 
@@ -218,7 +247,7 @@ administra aprueba cada link, ver Admin), los más nuevos primero y como mucho 2
 | Método y ruta | Acceso | Qué hace |
 |---|---|---|
 | `PUT /consentimientos` | sesión | `{"novedades": true \| false}` → agrega fila al historial; sin newsletter en la instalación, `novedades` queda en 0 |
-| `GET /mis-datos` | sesión | descarga un JSON con todos sus datos (alumno, consentimientos, avance, ideas, conversaciones, kits, links con `aprobado`, mails) |
+| `GET /mis-datos` | sesión | descarga un JSON con todos sus datos (alumno con su `estado`, consentimientos, avance, ideas, conversaciones, kits, links con `aprobado`, mails) |
 | `DELETE /mis-datos` | sesión | `{"confirmar": "BORRAR"}` → borra todo, cierra la sesión; `200` |
 | `GET /baja?t=<token>` | público | baja de mails del curso con token firmado (sin sesión, propósito `baja`, ver [mails.md](mails.md)); `200 {"ok": true}`; token inválido: `400` |
 | `POST /baja?t=<token>` | público | igual que el GET, para la baja en un clic de RFC 8058 (los proveedores de mail no mandan `Sec-Fetch-Site`, así que el anti CSRF no la frena) |
@@ -252,10 +281,13 @@ su turno.
 
 | Método y ruta | Qué devuelve |
 |---|---|
-| `GET /admin/reporte` | embudo (inscriptos, módulos 1 a 3 completados, kits, links; totales y últimos 30 días; por `fuente`), gasto del mes contra el tope, gasto promedio por alumno, datos del machete con más de 45 días |
+| `GET /admin/reporte` | embudo (inscriptos, módulos 1 a 3 completados, kits, links; totales y últimos 30 días; por `fuente`), gasto del mes contra el tope, gasto promedio por alumno, datos del machete con más de 45 días y `pendientes` (cantidad de pedidos de acceso sin aprobar). Un pendiente cuenta como inscripto desde que verifica su mail |
 | `GET /admin/novedades.csv` | CSV de una sola columna, `email`, con los alumnos cuyo último consentimiento `novedades` es 1, en el formato que importa la plataforma de newsletter del autor (ver [research.md](../research.md) §9) |
 | `GET /admin/links` | los links que sus dueños quieren mostrar (`mostrar_galeria = 1`), pendientes primero y dentro de cada grupo los más nuevos arriba: `[{"id", "url", "titulo", "mostrar_galeria", "aprobado", "creado"}]`, sin mails ni nombres |
 | `PUT /admin/links/{id}` | `{"aprobado": true \| false}` → `200` con el link en el formato de `GET /admin/links`; si no existe, `404`; sin booleano, `422`. Aprobar pone el link en la galería pública (si su dueño sigue queriendo mostrarlo); desaprobar lo saca |
+| `GET /admin/pedidos` | los pedidos de acceso (alumnos con `estado = pendiente`), los más viejos primero: `[{"id", "email", "creado", "fuente"}]` |
+| `POST /admin/pedidos/{id}/aprobar` | pasa al alumno a `aprobado`, registra el evento `aprobacion`, encola la bienvenida (`mails.enviar(settings, id, "bienvenida", "bienvenida")`, respeta la baja si la dio mientras esperaba) y responde `200 {"ok": true}`; si no existe, `404`; si ya estaba aprobado, `409` |
+| `DELETE /admin/pedidos/{id}` | rechaza el pedido: borra al alumno `pendiente` con todos sus datos (en cascada, más sus códigos) y registra un evento `borrado` anónimo; `200 {"ok": true}`. Si no existe, `404`; si está `aprobado`, `409` (a un aprobado no se lo borra desde acá). Quien fue rechazado puede volver a inscribirse y queda otra vez `pendiente` |
 
 Todas las rutas de admin responden `401` sin sesión y `403` si la sesión no es de `ADMIN_EMAIL`.
 

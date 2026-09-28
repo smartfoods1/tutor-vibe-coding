@@ -3,7 +3,7 @@ import { useConfig } from '../componentes/Configuracion.tsx'
 import { Cargando, MensajeError, mensajeDe } from '../componentes/Estados.tsx'
 import Pagina from '../componentes/Pagina.tsx'
 import VistaDatos from '../componentes/VistaDatos.tsx'
-import { api, type LinkPorAprobar } from '../lib/api.ts'
+import { ErrorApi, api, type LinkPorAprobar, type PedidoAcceso } from '../lib/api.ts'
 import { useCarga } from '../lib/useCarga.ts'
 import { esLinkSeguro } from '../lib/validar.ts'
 
@@ -23,6 +23,7 @@ export default function Admin() {
         <p className="aviso mt-6">Esta sección es solo para quien administra el curso.</p>
       ) : (
         <>
+          <PedidosDeAcceso />
           <GaleriaPorAprobar />
           <ListaNovedades />
           <Reporte />
@@ -110,6 +111,153 @@ function fecha(iso: string): string {
     year: 'numeric',
     timeZone: 'America/Argentina/Buenos_Aires',
   })
+}
+
+function fechaYHora(iso: string): string {
+  const momento = new Date(iso)
+  if (Number.isNaN(momento.getTime())) return ''
+  return momento.toLocaleString('es-AR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'America/Argentina/Buenos_Aires',
+  })
+}
+
+function cantidadDePedidos(n: number): string {
+  if (n === 0) return 'No hay pedidos pendientes.'
+  return n === 1 ? '1 pedido pendiente.' : `${n} pedidos pendientes.`
+}
+
+/**
+ * Las cuentas que esperan aprobación (APROBACION_MANUAL). Aprobar le manda la bienvenida; rechazar
+ * borra la cuenta con sus datos. Sin aprobación manual la sección aparece solo si quedaron pedidos.
+ */
+function PedidosDeAcceso() {
+  const { aprobacionManual } = useConfig()
+  const { datos, error, cargando, recargar, poner } = useCarga(() => api.pedidosDeAcceso())
+  const [ocupado, setOcupado] = useState<number | null>(null)
+  const [aRechazar, setARechazar] = useState<number | null>(null)
+  const [falla, setFalla] = useState<string | null>(null)
+  const pedidos = Array.isArray(datos) ? datos : []
+
+  if (!aprobacionManual && pedidos.length === 0) return null
+
+  async function resolver(pedido: PedidoAcceso, accion: 'aprobar' | 'rechazar') {
+    setFalla(null)
+    setOcupado(pedido.id)
+    try {
+      if (accion === 'aprobar') await api.aprobarPedido(pedido.id)
+      else await api.rechazarPedido(pedido.id)
+      setARechazar(null)
+      poner(pedidos.filter((p) => p.id !== pedido.id))
+      void recargar()
+    } catch (e) {
+      setFalla(mensajeDe(e))
+      // 404 o 409: ya lo resolvió otra pestaña (o se borró); la lista que se ve quedó vieja.
+      if (e instanceof ErrorApi && (e.status === 404 || e.status === 409)) {
+        setARechazar(null)
+        void recargar()
+      }
+    } finally {
+      setOcupado(null)
+    }
+  }
+
+  return (
+    <section aria-labelledby="pedidos-admin" className="tarjeta mt-6">
+      <div className="flex items-center justify-between gap-4">
+        <h2 id="pedidos-admin" className="text-[1.3rem] font-bold">
+          Pedidos de acceso
+        </h2>
+        <button type="button" className="boton boton-sec boton-chico" onClick={() => void recargar()}>
+          Actualizar
+        </button>
+      </div>
+      <p className="mt-2">
+        Cada inscripción nueva espera acá. Al aprobarla le llega el mail de bienvenida; al rechazarla se borran sus
+        datos.
+      </p>
+      {falla && (
+        <div className="mt-3">
+          <MensajeError mensaje={falla} />
+        </div>
+      )}
+      {cargando ? (
+        <Cargando />
+      ) : error && !datos ? (
+        <div className="mt-4">
+          <MensajeError mensaje={mensajeDe(error)} alReintentar={() => void recargar()} />
+        </div>
+      ) : (
+        <>
+          <p className="mt-3 font-semibold">{cantidadDePedidos(pedidos.length)}</p>
+          {pedidos.length > 0 && (
+            <ul aria-label="Pedidos de acceso" className="mt-3 divide-y divide-linea border-y border-linea">
+              {pedidos.map((pedido) => (
+                <li key={pedido.id} className="space-y-3 py-3">
+                  <div>
+                    <p className="font-semibold break-all">{pedido.email}</p>
+                    <p className="text-marron">
+                      {[fechaYHora(pedido.creado), pedido.fuente ? `Fuente: ${pedido.fuente}` : 'Sin fuente']
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                  {aRechazar === pedido.id ? (
+                    <div role="group" aria-label="Confirmar el rechazo" className="aviso">
+                      <p>Se borran sus datos. ¿Seguro?</p>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        <button
+                          type="button"
+                          className="boton boton-sec boton-chico border-oxido text-oxido"
+                          disabled={ocupado !== null}
+                          onClick={() => void resolver(pedido, 'rechazar')}
+                        >
+                          {ocupado === pedido.id ? 'Rechazando…' : 'Sí, rechazar'}
+                        </button>
+                        <button
+                          type="button"
+                          className="boton boton-sec boton-chico"
+                          disabled={ocupado === pedido.id}
+                          onClick={() => setARechazar(null)}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        className="boton boton-chico"
+                        aria-label={`Aprobar a ${pedido.email}`}
+                        disabled={ocupado !== null}
+                        onClick={() => void resolver(pedido, 'aprobar')}
+                      >
+                        {ocupado === pedido.id ? 'Aprobando…' : 'Aprobar'}
+                      </button>
+                      <button
+                        type="button"
+                        className="boton boton-sec boton-chico"
+                        aria-label={`Rechazar a ${pedido.email}`}
+                        disabled={ocupado !== null}
+                        onClick={() => setARechazar(pedido.id)}
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </section>
+  )
 }
 
 /** Los links que pidieron estar en la galería: se ven recién cuando se aprueban. */

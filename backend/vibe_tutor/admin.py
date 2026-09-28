@@ -1,5 +1,5 @@
-"""Reporte para quien opera el curso, exportación de la lista de novedades y moderación de la galería
-(contracts/api.md, sección Admin; research §9)."""
+"""Reporte para quien opera el curso, exportación de la lista de novedades, moderación de la galería y
+pedidos de acceso con APROBACION_MANUAL (contracts/api.md, sección Admin; research §9)."""
 
 import csv
 import io
@@ -7,10 +7,10 @@ import logging
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from pydantic import BaseModel, StrictBool
 
-from vibe_tutor import auth, contenido, costos
+from vibe_tutor import auth, contenido, costos, dominio, mails
 from vibe_tutor.config import Settings, get_settings
 
 ETAPAS = ("inscriptos", "modulo_1", "modulo_2", "modulo_3", "kits", "links")
@@ -24,6 +24,12 @@ _ETAPA_DE = {
 }
 VENTANA_RECIENTE = timedelta(days=30)
 MENSAJE_SIN_LINK = "Ese link no existe."
+MENSAJE_SIN_PEDIDO = "Ese pedido de acceso no existe."
+MENSAJE_YA_APROBADO = "Esa persona ya tiene el acceso aprobado."
+MENSAJE_NO_SE_RECHAZA = (
+    "Esa persona ya tiene el acceso aprobado: no se borra desde los pedidos. Puede borrar sus datos desde "
+    "\"Mis datos\"."
+)
 _COLUMNAS_MODERACION = "id, url, titulo, mostrar_galeria, aprobado, creado"
 # Un mail que empieza así se leería como fórmula al abrir el CSV en una planilla.
 _INICIO_DE_FORMULA = ("=", "+", "-", "@", "\t", "\r")
@@ -138,6 +144,7 @@ def reporte(
         "embudo": embudo(con, momento),
         "gasto": gasto(con, settings, momento),
         "machete": machete(settings, momento.astimezone(costos.ZONA_ARGENTINA).date()),
+        "pendientes": dominio.contar_pendientes(con),
     }
 
 
@@ -202,3 +209,57 @@ def moderar_link(link_id: int, datos: Aprobacion, con: sqlite3.Connection = Depe
     log.info("link %s %s para la galería", link_id, "aprobado" if datos.aprobado else "sacado")
     fila = con.execute(f"SELECT {_COLUMNAS_MODERACION} FROM links WHERE id = ?", (link_id,)).fetchone()
     return _link_moderado(fila)
+
+
+# --- pedidos de acceso (APROBACION_MANUAL) -------------------------------------------------------------
+
+
+@router.get("/pedidos")
+def pedidos(con: sqlite3.Connection = Depends(auth.conexion)) -> list[dict]:
+    """Quienes esperan que se apruebe su inscripción, los más viejos primero."""
+    filas = con.execute(
+        "SELECT id, email, creado, fuente FROM alumnos WHERE estado = ? ORDER BY creado, id", (dominio.PENDIENTE,)
+    )
+    return [dict(fila) for fila in filas]
+
+
+@router.post("/pedidos/{alumno_id}/aprobar")
+def aprobar_pedido(
+    alumno_id: int,
+    tareas: BackgroundTasks,
+    settings: Settings = Depends(get_settings),
+    con: sqlite3.Connection = Depends(auth.conexion),
+) -> dict:
+    """Abre el curso a quien esperaba y le manda la bienvenida (que no salió al inscribirse)."""
+    with con:
+        cambiados = con.execute(
+            "UPDATE alumnos SET estado = ? WHERE id = ? AND estado = ?",
+            (dominio.APROBADO, alumno_id, dominio.PENDIENTE),
+        ).rowcount
+        if cambiados:
+            con.execute("INSERT INTO eventos (alumno_id, tipo) VALUES (?, 'aprobacion')", (alumno_id,))
+    if not cambiados:
+        if dominio.alumno(con, alumno_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, MENSAJE_SIN_PEDIDO)
+        raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_YA_APROBADO)
+    log.info("pedido de acceso %s aprobado", alumno_id)
+    tareas.add_task(mails.enviar, settings, alumno_id, "bienvenida", "bienvenida")
+    return {"ok": True}
+
+
+@router.delete("/pedidos/{alumno_id}")
+def rechazar_pedido(alumno_id: int, con: sqlite3.Connection = Depends(auth.conexion)) -> dict:
+    """Borra al alumno que esperaba con todos sus datos, como el borrado a pedido. A alguien ya
+    aprobado no se lo borra desde acá."""
+    with con:
+        con.execute("BEGIN IMMEDIATE")
+        fila = con.execute("SELECT email, estado FROM alumnos WHERE id = ?", (alumno_id,)).fetchone()
+        if fila is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, MENSAJE_SIN_PEDIDO)
+        if fila["estado"] != dominio.PENDIENTE:
+            raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_NO_SE_RECHAZA)
+        con.execute("DELETE FROM codigos WHERE email = ?", (fila["email"],))
+        con.execute("DELETE FROM alumnos WHERE id = ?", (alumno_id,))
+        con.execute("INSERT INTO eventos (alumno_id, tipo) VALUES (NULL, 'borrado')")
+    log.info("pedido de acceso %s rechazado: se borraron sus datos", alumno_id)
+    return {"ok": True}

@@ -9,6 +9,8 @@ MAX_QUE_SIGUE = 3000
 MAX_RESUMEN = 1000
 MAX_FUENTE = 64
 MODULO_KIT = 4
+PENDIENTE = "pendiente"
+APROBADO = "aprobado"
 
 
 class ErrorDominio(ValueError):
@@ -19,13 +21,19 @@ def normalizar_email(email: str) -> str:
     return email.strip().lower()
 
 
-def crear_alumno(con: sqlite3.Connection, email: str, fuente: str | None) -> int:
+def crear_alumno(con: sqlite3.Connection, email: str, fuente: str | None, estado: str = APROBADO) -> int:
+    """Crea al alumno; con la aprobación manual entra como PENDIENTE hasta que lo aprueben."""
     with con:
         cursor = con.execute(
-            "INSERT INTO alumnos (email, fuente) VALUES (?, ?)",
-            (normalizar_email(email), (fuente or None) and fuente[:MAX_FUENTE]),
+            "INSERT INTO alumnos (email, fuente, estado) VALUES (?, ?, ?)",
+            (normalizar_email(email), (fuente or None) and fuente[:MAX_FUENTE], estado),
         )
     return int(cursor.lastrowid)
+
+
+def contar_pendientes(con: sqlite3.Connection) -> int:
+    """Cuántos pedidos de acceso esperan que quien administra los apruebe."""
+    return int(con.execute("SELECT count(*) FROM alumnos WHERE estado = ?", (PENDIENTE,)).fetchone()[0])
 
 
 def alumno(con: sqlite3.Connection, alumno_id: int) -> sqlite3.Row | None:

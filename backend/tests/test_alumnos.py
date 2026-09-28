@@ -136,6 +136,7 @@ def test_yo_de_un_alumno_nuevo(cliente):
         "tope": {"bloqueado": False, "alcance": None},
         "consentimientos": {"mails_curso": True, "novedades": False},
         "audios": [],
+        "estado": "aprobado",
     }
 
 
@@ -957,6 +958,7 @@ def test_descargar_mis_datos(cliente, base, hacer_cliente):
     assert set(datos) >= {"alumno", "consentimientos", "avance", "ideas", "conversaciones", "kits", "links", "mails"}
     assert datos["alumno"]["email"] == MAIL
     assert datos["alumno"]["herramienta"] == "codex"
+    assert datos["alumno"]["estado"] == "aprobado"
     assert {(c["tipo"], c["valor"]) for c in datos["consentimientos"]} >= {("mails_curso", True), ("transferencia", True)}
     assert datos["avance"][0]["resumen"] == "Quiere un registro de sueños."
     assert [i["texto_md"] for i in datos["ideas"]] == [IDEA]

@@ -25,6 +25,11 @@ Persona inscripta y verificada. Solo existe después de validar el código del m
 | sistema | TEXT NULL | `mac`, `windows` u `otro` (US3, escenario 5) |
 | modulo_actual | INTEGER NOT NULL DEFAULT 1 | 1 a 7 |
 | fuente | TEXT NULL | de dónde llegó (`?ref=` de la landing, por ejemplo `hecho-en` o una palabra clave), máx. 64 |
+| estado | TEXT NOT NULL DEFAULT `aprobado` | migración 4 (29/9): `pendiente` o `aprobado`. Con `APROBACION_MANUAL`, quien verifica su mail por primera vez queda `pendiente` (salvo `ADMIN_EMAIL`) hasta que quien administra lo aprueba; los alumnos anteriores a la migración quedaron `aprobado` |
+
+Transiciones de `estado`: `pendiente` → `aprobado` al aprobar el pedido desde el admin (evento
+`aprobacion` y mail de bienvenida). Un `pendiente` no vuelve a `aprobado` solo ni al revés: si se
+rechaza el pedido o pasan 90 días sin aprobarlo, se borra el alumno con sus datos.
 
 Transiciones de `modulo_actual`: sube cuando se completa el módulo anterior (herramienta
 `marcar_avance`, o botón "ya lo hice" de la guía escrita). Del 3 al 4 sube cuando descarga el kit.
@@ -184,12 +189,13 @@ Registro de mails del curso para no repetirlos y para la regla de frecuencia (FR
 |---|---|---|
 | id | INTEGER PK | |
 | alumno_id | INTEGER NULL FK alumnos | ON DELETE CASCADE; NULL para avisos a Andrés |
-| tipo | TEXT NOT NULL | `bienvenida`, `recordatorio`, `contame`, `aviso_80` |
-| clave | TEXT NOT NULL | evita duplicados: `bienvenida`, `recordatorio`, `contame` (una vez en la vida, con el primer link), `aviso_80:<AAAA-MM>` |
+| tipo | TEXT NOT NULL | `bienvenida`, `recordatorio`, `contame`, `aviso_80`, `pedidos` (migración 4: aviso de pedidos de acceso a quien administra) |
+| clave | TEXT NOT NULL | evita duplicados: `bienvenida`, `recordatorio`, `contame` (una vez en la vida, con el primer link), `aviso_80:<AAAA-MM>`, `pedidos:<AAAA-MM-DDTHH>` (hora de Argentina: uno por hora como mucho) |
 | estado | TEXT NOT NULL | `enviado` o `fallido` |
 | creado | TEXT NOT NULL | |
 
-UNIQUE (alumno_id, clave). Máximo un recordatorio por alumno en toda su vida.
+UNIQUE (alumno_id, clave), y un índice único parcial sobre `clave` para las filas sin alumno
+(`idx_mails_sin_alumno`). Máximo un recordatorio por alumno en toda su vida.
 
 ### eventos
 
@@ -200,7 +206,7 @@ Embudo para el reporte y la regla de los 30 días (FR-024, SC-009). No guarda da
 |---|---|---|
 | id | INTEGER PK | |
 | alumno_id | INTEGER NULL FK alumnos | ON DELETE SET NULL (al borrar un alumno, el evento queda anónimo) |
-| tipo | TEXT NOT NULL | `inscripcion`, `modulo_completo`, `kit`, `link`, `baja_mails`, `borrado` |
+| tipo | TEXT NOT NULL | `inscripcion`, `modulo_completo`, `kit`, `link`, `baja_mails`, `borrado`, `aprobacion` (migración 4: quien administra aprobó el pedido de acceso) |
 | detalle | TEXT NULL | por ejemplo `modulo=2`, `herramienta=codex`, `fuente=hecho-en` |
 | creado | TEXT NOT NULL | |
 
@@ -220,6 +226,18 @@ alumnos 1─* eventos (SET NULL al borrar)
 
 `PRAGMA foreign_keys = ON` en cada conexión, para que funcionen los CASCADE y los SET NULL.
 
+## Migraciones
+
+| Número | Qué hace |
+|---|---|
+| 1 | Esquema inicial |
+| 2 | `links.aprobado` (galería moderada) y `codigos.fallos` |
+| 3 | El consentimiento opcional pasa a llamarse `novedades` (recrea `consentimientos`) |
+| 4 | `alumnos.estado` (aprobación manual; los existentes quedan `aprobado`), `mails.tipo` suma `pedidos` y `eventos.tipo` suma `aprobacion`. Como SQLite no cambia un CHECK, recrea `mails` y `eventos` con las mismas filas, ids, fechas e índices, y conserva el contador de ids (`sqlite_sequence`) para no reusar los de filas borradas |
+
+Una base nueva corre las cuatro migraciones en orden, así termina con el mismo esquema que una
+migrada (hay un test que lo compara).
+
 ## Retención y borrado (FR-030, FR-031)
 
 - Borrado a pedido: se borra la fila de `alumnos` y, en cascada, consentimientos, avance, ideas,
@@ -231,6 +249,10 @@ alumnos 1─* eventos (SET NULL al borrar)
   `resumen` del módulo en `avance`, que el tutor escribe sin datos personales ni de salud. La idea,
   el avance y los links quedan hasta que el alumno los borre.
 - Códigos: se purgan a las 24 h de creados.
+- Pedidos de acceso sin aprobar (`alumnos.estado = pendiente`, solo con `APROBACION_MANUAL`): se
+  borran cuando quien administra rechaza el pedido (`DELETE /admin/pedidos/{id}`) o, si nadie lo
+  aprueba, la tarea periódica los borra a los 90 días de `creado`. En los dos casos se va el alumno
+  con todos sus datos (en cascada) y queda un evento `borrado` anónimo.
 - Capturas: nunca se guardan (ni en disco ni en la base).
 
 ## Contenido versionado (fuera de la base)

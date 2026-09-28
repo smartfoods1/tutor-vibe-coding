@@ -1,7 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { Cargando, MensajeError, mensajeDe } from '../componentes/Estados.tsx'
 import Pagina from '../componentes/Pagina.tsx'
-import { api, type Yo } from '../lib/api.ts'
+import PedidoPendiente from '../componentes/PedidoPendiente.tsx'
+import { api, cuentaPendiente, type Yo } from '../lib/api.ts'
 import { RESUMEN_MODULOS, TITULOS_MODULOS } from '../lib/marca.ts'
 import { useCarga } from '../lib/useCarga.ts'
 
@@ -36,6 +37,8 @@ export default function Inicio() {
       </Pagina>
     )
   }
+
+  if (cuentaPendiente(yo)) return <PedidoPendiente email={yo.email} />
 
   const actual = yo.modulo_actual
   const enLaWeb = actual <= 3

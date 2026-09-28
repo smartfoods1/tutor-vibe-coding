@@ -40,7 +40,8 @@ MENSAJE_VACIO = "Escribí un mensaje o mandá una captura."
 MENSAJE_IMAGEN_GRANDE = "La captura supera los 5 MB. Probá con una más chica."
 MENSAJE_IMAGEN_FORMATO = "La captura tiene que ser una imagen PNG, JPEG o WebP."
 
-Alumno = Annotated[auth.Alumno, Depends(auth.alumno_actual)]
+# Quien espera que aprueben su inscripción (APROBACION_MANUAL) no usa el tutor: 403 "pendiente".
+Alumno = Annotated[auth.Alumno, Depends(auth.alumno_aprobado)]
 Con = Annotated[sqlite3.Connection, Depends(auth.conexion)]
 
 router = APIRouter(prefix="/api", tags=["tutor"])

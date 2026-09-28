@@ -33,6 +33,10 @@ PLANTILLAS = {
         "Gasto del mes: US$ {{GASTO_MES}} de US$ {{TOPE_MES}}.\n\n"
         "Alumnos activos este mes: {{ALUMNOS_ACTIVOS}}.\n\nReporte: {{ENLACE_REPORTE}}\n"
     ),
+    "pedidos": (
+        "---\nasunto: Pedidos de acceso para aprobar ({{PENDIENTES}})\n---\n"
+        "Pedidos esperando: {{PENDIENTES}}.\n\nAprobalos desde {{ENLACE_ADMIN}}\n"
+    ),
 }
 PIE = (
     "---\nestado: borrador\n---\nPara no recibir más mails del curso: {{ENLACE_BAJA}}\n\n"
@@ -72,8 +76,8 @@ def base(db_de):
     con.close()
 
 
-def _alumno(con, email=MAIL) -> int:
-    alumno_id = dominio.crear_alumno(con, email, fuente=None)
+def _alumno(con, email=MAIL, estado="aprobado") -> int:
+    alumno_id = dominio.crear_alumno(con, email, fuente=None, estado=estado)
     for tipo in ("mails_curso", "transferencia"):
         dominio.agregar_consentimiento(con, alumno_id, tipo, True, "prueba")
     return alumno_id
@@ -233,6 +237,67 @@ async def test_aviso_80_va_a_quien_administra_sin_baja(settings_tmp, raiz, reloj
     }
     assert await mails.enviar(settings_tmp, None, "aviso_80", "aviso_80:2026-09") == "omitido"
     assert resend.call_count == 1
+
+
+async def test_aviso_80_cuenta_como_activos_solo_a_los_aprobados(settings_tmp, raiz, reloj, resend, base, alumno):
+    costos.registrar(base, "anthropic", "claude-sonnet-5", {}, 41.0, alumno_id=alumno)
+    _alumno(base, "pendiente@example.com", estado="pendiente")
+
+    assert await mails.enviar(settings_tmp, None, "aviso_80", "aviso_80:2026-09") == "enviado"
+
+    assert "Alumnos activos este mes: 1." in _pedido(resend)[1]["text"]
+
+
+# --- pedidos de acceso (APROBACION_MANUAL) ------------------------------------------------------------
+
+
+def test_clave_de_pedidos_por_hora_de_argentina():
+    assert mails.clave_pedidos(datetime(2026, 9, 28, 15, 0, tzinfo=timezone.utc)) == "pedidos:2026-09-28T12"
+    assert mails.clave_pedidos(datetime(2026, 9, 28, 15, 59, tzinfo=timezone.utc)) == "pedidos:2026-09-28T12"
+    assert mails.clave_pedidos(datetime(2026, 9, 29, 2, 30, tzinfo=timezone.utc)) == "pedidos:2026-09-28T23"
+
+
+async def test_pedidos_va_a_quien_administra_sin_baja(settings_tmp, raiz, reloj, resend, base, alumno):
+    estado = await mails.enviar(settings_tmp, None, "pedidos", "pedidos:2026-09-28T12", {"pendientes": 3})
+
+    assert estado == "enviado"
+    _, cuerpo = _pedido(resend)
+    assert cuerpo["to"] == [settings_tmp.admin_email]
+    assert cuerpo["subject"] == "Pedidos de acceso para aprobar (3)"
+    assert "Pedidos esperando: 3." in cuerpo["text"]
+    assert f"Aprobalos desde {BASE}/admin" in cuerpo["text"]
+    assert "baja" not in cuerpo["text"] and "Art. 27" not in cuerpo["text"]
+    assert "headers" not in cuerpo
+    assert _mails(base) == [
+        {"alumno_id": None, "tipo": "pedidos", "clave": "pedidos:2026-09-28T12", "estado": "enviado",
+         "creado": "2026-09-28T15:00:00+00:00"}
+    ]
+    assert await mails.enviar(settings_tmp, None, "pedidos", "pedidos:2026-09-28T12", {"pendientes": 4}) == "omitido"
+    assert await mails.enviar(settings_tmp, None, "pedidos", "pedidos:2026-09-28T13", {"pendientes": 4}) == "enviado"
+    assert resend.call_count == 2
+
+
+async def test_pedidos_sin_datos_cuenta_los_pendientes_de_la_base(settings_tmp, raiz, reloj, resend, base, alumno):
+    for numero in range(2):
+        _alumno(base, f"pendiente{numero}@example.com", estado="pendiente")
+
+    assert await mails.enviar(settings_tmp, alumno, "pedidos", "pedidos:2026-09-28T12") == "enviado"
+
+    _, cuerpo = _pedido(resend)
+    assert cuerpo["to"] == [settings_tmp.admin_email]
+    assert "Pedidos esperando: 2." in cuerpo["text"]
+    assert _mails(base)[0]["alumno_id"] is None
+
+
+async def test_los_mails_del_curso_no_van_a_quien_espera_aprobacion(settings_tmp, raiz, reloj, resend, base):
+    pendiente = _alumno(base, estado="pendiente")
+    _link(base, pendiente)
+
+    for tipo in ("bienvenida", "recordatorio", "contame"):
+        assert await mails.enviar(settings_tmp, pendiente, tipo, tipo) == "omitido"
+
+    assert resend.call_count == 0
+    assert _mails(base) == []
 
 
 async def test_falla_de_resend_queda_fallido_sin_loguear_la_clave(settings_tmp, raiz, reloj, base, alumno, caplog):

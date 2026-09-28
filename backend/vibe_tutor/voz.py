@@ -324,11 +324,12 @@ def _sin_modo_demo(settings: Annotated[Settings, Depends(get_settings)]) -> None
         raise HTTPException(503, MENSAJE_MODO_DEMO)
 
 
+# La voz es parte del tutor: quien espera que aprueben su inscripción no la usa (403 "pendiente").
 router = APIRouter(
-    prefix="/api/voz", tags=["voz"], dependencies=[Depends(auth.alumno_actual), Depends(_sin_modo_demo)]
+    prefix="/api/voz", tags=["voz"], dependencies=[Depends(auth.alumno_aprobado), Depends(_sin_modo_demo)]
 )
 
-Alumno = Annotated[auth.Alumno, Depends(auth.alumno_actual)]
+Alumno = Annotated[auth.Alumno, Depends(auth.alumno_aprobado)]
 
 
 def _chequear_tope(con: sqlite3.Connection, settings: Settings, alumno_id: int) -> None:
