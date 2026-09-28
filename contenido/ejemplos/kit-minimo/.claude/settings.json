@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "ask": ["Bash"],
+    "deny": ["Bash(sudo:*)", "Bash(rm -rf:*)"]
+  }
+}

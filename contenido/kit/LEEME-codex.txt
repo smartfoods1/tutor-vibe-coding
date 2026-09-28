@@ -1,0 +1,98 @@
+TU CARPETA DEL CURSO: {{TITULO}}
+
+Kit armado el {{FECHA}}, para Codex (la app de ChatGPT) en una computadora con {{SISTEMA}}.
+
+Esta carpeta es tu proyecto. Adentro están tu idea, las lecciones 4 a 7 y el lugar donde va a vivir
+tu página. El tutor del curso es la app: le escribís y te guía un paso por vez.
+
+
+ANTES DE EMPEZAR
+
+1. En Windows, si todavía está comprimida: clic derecho sobre el archivo, "Extraer todo".
+2. Guardá esta carpeta en un lugar fijo: una carpeta llamada Proyectos, dentro de tu carpeta
+   personal. Ni en Documentos, ni en Descargas, ni en el escritorio. Y no la muevas después.
+   - En Mac: abrí el Finder y elegí el menú Ir, Inicio (en inglés, Go y Home). Ahí creá la
+     carpeta Proyectos (menú Archivo, Nueva carpeta) y llevá esta carpeta adentro.
+   - En Windows: abrí el Explorador de archivos y andá a tu carpeta de usuario (Este equipo,
+     Disco local C:, Usuarios y la carpeta con tu nombre de usuario). Ahí creá la carpeta
+     Proyectos (clic derecho en un lugar vacío, Nuevo, Carpeta) y llevá esta carpeta adentro.
+3. No borres ni cambies de nombre nada de lo que hay adentro. Tu computadora puede esconder dos
+   carpetas, .claude y .agents: son parte del kit.
+
+
+CÓMO ABRIRLA EN CODEX
+
+1. Abrí la app de ChatGPT en tu computadora y elegí Codex.
+2. Abrí esta carpeta como proyecto: la carpeta donde está este LEEME.txt. En Windows, al
+   extraer, a veces queda una carpeta dentro de otra con el mismo nombre: elegí la de adentro.
+3. Si la app pregunta si confiás en esta carpeta (en inglés puede decir "trust"), contestá que sí:
+   es tu carpeta del curso y tiene solo tus archivos.
+
+Si algo de la pantalla no coincide con estos pasos, seguí lo que ves y mirá curso/machete.md, que
+tiene los pasos de cada app con la fecha en que se revisaron.
+
+
+LA PRIMERA VEZ
+
+1. Si estás en el módulo 3, para comprobar que la app anda escribí: hola, probando
+   La app tiene que contestar que anda, y nada más. Después volvé a la web del curso para cerrar
+   el módulo 3.
+2. Para arrancar la lección 4, escribí: empecemos
+   Puede ser enseguida, en la misma conversación de la prueba, o en otro momento. Reservá unos 90
+   minutos seguidos: es la sesión en la que vas a ver tu idea andando y publicada con un link.
+
+
+CÓMO SEGUIR OTRO DÍA
+
+Cuando ya empezaste la lección 4 y volvés otro día: abrí la app, elegí esta misma carpeta,
+empezá una conversación nueva y escribí: sigamos
+El tutor lee en bitacora.md dónde quedaste y sigue desde ahí.
+
+
+PERMISOS
+
+Codex puede cambiar archivos y correr comandos dentro de esta carpeta sin preguntarte. Por eso el
+tutor tiene una regla: antes de correr cualquier comando te explica qué hace y espera tu sí. Si ves
+que hizo algo sin explicarte, frenalo y preguntale qué hizo.
+Si la app te ofrece un modo de acceso total ("Full access"), no lo elijas: dejá el que trae.
+
+
+NUNCA
+
+Nunca le pases a la app contraseñas, claves, códigos ni datos de tarjeta. El tutor no te los va a
+pedir. Cuando haga falta entrar a una cuenta, entrás vos, en tu navegador.
+
+
+SI LA APP DEJA DE CONTESTAR POR EL LÍMITE
+
+No perdiste nada: tu página, tus versiones y tus notas siguen en esta carpeta. Abrí
+curso/machete.md con el editor de texto de tu computadora (TextEdit en Mac, Bloc de notas en
+Windows) y leé lo que dice de planes y límites: ahí están tus opciones y lo que cuesta cada una,
+con la fecha en que se revisó. Podés esperar a que el límite se renueve o cambiar de plan; lo
+decidís vos. Fijate si la app dice cuándo se renueva. Mientras tanto, podés mirar tu página con
+doble clic en sitio/index.html. Cuando la app vuelva a contestar, escribí: sigamos
+
+
+PUBLICAR
+
+Lo hacés con el tutor en la lección 4. Una regla para no olvidar: se publica solo la carpeta
+sitio, nunca esta carpeta entera. Acá adentro están tu idea, tu bitácora y tu cuaderno, que son
+para vos.
+
+
+SI PERDÉS LA CARPETA
+
+Podés volver a bajar el kit desde {{URL_CURSO}}: vuelve tu idea, pero no la página que
+construiste. Por eso, en las lecciones 6 y 7 vas a copiar esta carpeta a un pendrive o a tu nube.
+
+
+QUÉ HAY ADENTRO
+
+- mi-idea.md: tu idea en una página.
+- sitio: tu página. Es lo único que se publica.
+- versiones: copias de tu página, para poder volver atrás.
+- bitacora.md: dónde quedaste. La actualiza el tutor.
+- cuaderno.md: qué esperabas ver y qué viste en los cambios importantes, y los intentos de cada
+  arreglo.
+- curso: las lecciones que usa el tutor y el machete, con los datos que cambian seguido.
+- AGENTS.md y CLAUDE.md: las instrucciones del tutor. Las podés leer: no hay nada escondido.

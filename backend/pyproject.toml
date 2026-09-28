@@ -1,0 +1,42 @@
+[project]
+name = "vibe-tutor"
+version = "0.1.0"
+description = "Curso gratis de vibe coding con tutor de IA por texto y voz, y armado del kit para Claude Code y Codex"
+license = "MIT"
+authors = [{ name = "Andrés (@specialandres)" }]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141",
+    "uvicorn[standard]>=0.54",
+    "anthropic>=1.8",
+    "httpx>=0.28",
+    "PyJWT>=2.15",
+    "pydantic-settings>=2.15",
+    "python-multipart>=0.0.32",
+    "jsonschema>=4.26",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1",
+    "pytest-asyncio>=1.4",
+    "respx>=0.23",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["vibe_tutor"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "real: usa las APIs reales de Claude y Gemini (tiene costo); se corre a mano con -m real",
+]
+addopts = "-m 'not real'"

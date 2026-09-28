@@ -1,0 +1,303 @@
+@import "tailwindcss";
+
+/* Paleta del curso: cambiá estos tokens para usar tus colores. El papel es el fondo de lectura,
+   la tinta el texto y el oro lo que se toca. El óxido es la única señal (estado actual y errores).
+   Si cambiás el papel o el oro, cambiá también theme-color en index.html, los colores del manifest
+   en vite.config.ts y los íconos de public/. */
+@theme {
+  --color-oro: #e4bc5c;
+  --color-oro-hondo: #d6aa42;
+  --color-tinta: #1c1a16;
+  --color-marron: #5c4418;
+  --color-oxido: #8e2a17;
+  --color-papel: #ede6d6;
+  --color-hoja: #f7f3ea;
+  --color-linea: #cbbf9f;
+  --color-alumno: #e2d7bf;
+  --font-serif: "Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  html {
+    /* 18 px de base: todo el texto de lectura queda en 17 px o más. */
+    font-size: 112.5%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-papel);
+    color: var(--color-tinta);
+    font-family: var(--font-serif);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  a {
+    color: inherit;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-tinta);
+    outline-offset: 3px;
+  }
+
+  ::selection {
+    background-color: var(--color-oro);
+    color: var(--color-tinta);
+  }
+
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--color-tinta);
+    width: 1.4rem;
+    height: 1.4rem;
+    flex-shrink: 0;
+    margin-top: 0.2rem;
+  }
+}
+
+@layer components {
+  .boton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 3.25rem;
+    padding: 0.7rem 1.5rem;
+    border: 2px solid var(--color-tinta);
+    border-radius: 0.5rem;
+    background-color: var(--color-oro);
+    color: var(--color-tinta);
+    font: inherit;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+
+  .boton:hover {
+    background-color: var(--color-oro-hondo);
+  }
+
+  .boton:disabled,
+  .boton[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .boton-sec {
+    background-color: transparent;
+  }
+
+  .boton-sec:hover {
+    background-color: rgb(28 26 22 / 0.07);
+  }
+
+  .boton-chico {
+    min-height: 2.75rem;
+    padding: 0.4rem 1rem;
+    font-size: 0.95rem;
+  }
+
+  .enlace {
+    text-decoration: underline;
+    font-weight: 600;
+  }
+
+  .campo {
+    display: block;
+    width: 100%;
+    min-height: 3.25rem;
+    padding: 0.7rem 0.9rem;
+    border: 2px solid var(--color-marron);
+    border-radius: 0.5rem;
+    background-color: var(--color-hoja);
+    color: var(--color-tinta);
+    font: inherit;
+  }
+
+  .campo:focus {
+    border-color: var(--color-tinta);
+  }
+
+  .campo::placeholder {
+    color: var(--color-marron);
+    opacity: 0.75;
+  }
+
+  textarea.campo {
+    min-height: 6.5rem;
+    resize: vertical;
+  }
+
+  .etiqueta {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-marron);
+  }
+
+  .tarjeta {
+    background-color: var(--color-hoja);
+    border: 1px solid var(--color-linea);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+  }
+
+  .aviso {
+    border-left: 4px solid var(--color-marron);
+    background-color: var(--color-hoja);
+    padding: 0.9rem 1rem;
+    border-radius: 0 0.5rem 0.5rem 0;
+  }
+
+  .aviso-logro {
+    border-left-color: var(--color-oro-hondo);
+  }
+
+  .aviso-error {
+    border-left: 4px solid var(--color-oxido);
+    background-color: #f5e2da;
+    color: var(--color-oxido);
+    padding: 0.9rem 1rem;
+    border-radius: 0 0.5rem 0.5rem 0;
+    font-weight: 600;
+  }
+
+  /* Regla con marcas, como la de una regla de dibujo: separa el encabezado de la portada. */
+  .regla {
+    height: 10px;
+    border-top: 1px solid currentColor;
+    background-image: repeating-linear-gradient(
+      to right,
+      currentColor 0 1px,
+      transparent 1px 24px
+    );
+    background-size: 100% 6px;
+    background-repeat: no-repeat;
+    opacity: 0.55;
+  }
+
+  .puntos::after {
+    content: "…";
+    display: inline-block;
+    width: 1.2em;
+    animation: puntos 1.2s steps(4, end) infinite;
+    overflow: hidden;
+    vertical-align: bottom;
+    white-space: nowrap;
+  }
+
+  @keyframes puntos {
+    from {
+      width: 0;
+    }
+    to {
+      width: 1.2em;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .puntos::after {
+      animation: none;
+    }
+    .boton {
+      transition: none;
+    }
+  }
+
+  /* Texto en markdown (guías, idea, respuestas del tutor). */
+  .prosa > * + * {
+    margin-top: 0.8em;
+  }
+  .prosa h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-top: 1.2em;
+  }
+  .prosa h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin-top: 1.2em;
+  }
+  .prosa h3,
+  .prosa h4 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-top: 1em;
+  }
+  .prosa > :first-child {
+    margin-top: 0;
+  }
+  .prosa ul {
+    list-style: disc;
+    padding-left: 1.4rem;
+  }
+  .prosa ol {
+    list-style: decimal;
+    padding-left: 1.4rem;
+  }
+  .prosa li + li {
+    margin-top: 0.3em;
+  }
+  .prosa a {
+    text-decoration: underline;
+    font-weight: 600;
+  }
+  .prosa strong {
+    font-weight: 700;
+  }
+  .prosa code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background-color: rgb(92 68 24 / 0.1);
+    padding: 0.05em 0.3em;
+    border-radius: 0.25rem;
+    overflow-wrap: anywhere;
+  }
+  .prosa pre {
+    overflow-x: auto;
+    background-color: rgb(92 68 24 / 0.1);
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+  }
+  .prosa pre code {
+    background: none;
+    padding: 0;
+  }
+  .prosa blockquote {
+    border-left: 3px solid var(--color-linea);
+    padding-left: 1rem;
+    color: var(--color-marron);
+  }
+  .prosa hr {
+    border: 0;
+    border-top: 1px solid var(--color-linea);
+  }
+  .prosa table {
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+  }
+  .prosa th,
+  .prosa td {
+    border: 1px solid var(--color-linea);
+    padding: 0.3rem 0.6rem;
+    text-align: left;
+  }
+}

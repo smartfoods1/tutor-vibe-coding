@@ -1,0 +1,64 @@
+name: Contenido del curso
+description: Un dato vencido, un error en una lección o guía, una línea de ayuda o una mejora pedagógica.
+title: "[contenido] "
+labels: ["contenido"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Todo dato que se vence lleva fuente oficial y fecha de verificación, y nada se presenta como "gratis" sin haberlo probado de verdad. **No pegues datos de alumnos.**
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: Qué tipo de cambio
+      options:
+        - Un dato del machete que cambió o venció (precio, plan, instalación, publicación, límites)
+        - Una línea de ayuda o un número de emergencias
+        - Un error o algo confuso en una lección, guía o mail
+        - Una mejora pedagógica
+        - Un texto legal
+        - Otro
+    validations:
+      required: true
+  - type: input
+    id: archivo
+    attributes:
+      label: Archivo
+      description: Por ejemplo, contenido/machete.yaml (id del dato) o contenido/kit/curso/leccion-5-construir.md.
+    validations:
+      required: true
+  - type: textarea
+    id: hoy
+    attributes:
+      label: Qué dice hoy
+    validations:
+      required: true
+  - type: textarea
+    id: deberia
+    attributes:
+      label: Qué debería decir
+    validations:
+      required: true
+  - type: input
+    id: fuente
+    attributes:
+      label: Fuente
+      description: El link a la página oficial o al estudio que lo sostiene.
+    validations:
+      required: true
+  - type: input
+    id: fecha
+    attributes:
+      label: Fecha en que lo verificaste
+      placeholder: AAAA-MM-DD
+    validations:
+      required: true
+  - type: dropdown
+    id: probado
+    attributes:
+      label: ¿Lo probaste de punta a punta?
+      description: Es obligatorio para decir que algo no se paga.
+      options:
+        - "Sí, lo hice de verdad"
+        - "No, lo leí en la fuente"
+        - No aplica

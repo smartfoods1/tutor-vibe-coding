@@ -1,0 +1,15 @@
+Esta carpeta es tuya.
+
+La plantilla de este kit se publica bajo CC0 1.0 Universal: su autor renunció a todos sus derechos
+sobre ella, en la medida en que la ley lo permite. Podés usarla, cambiarla, compartirla y
+publicarla, también con fines comerciales, sin pedir permiso y sin tener que nombrar a nadie.
+Incluye curso/machete.md, que sale del machete del curso y también es CC0.
+
+Lo que agregás vos (tu idea, tus textos, tus imágenes y tu página) es tuyo y decidís vos qué
+hacer con eso.
+
+Resumen de CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/deed.es
+Texto legal en español: https://creativecommons.org/publicdomain/zero/1.0/legalcode.es
+
+CC0 no cubre marcas ni nombres de productos (Claude, Codex, ChatGPT, Netlify y otros), que son de
+sus dueños.

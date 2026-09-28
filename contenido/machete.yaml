@@ -1,0 +1,203 @@
+# Machete: datos que se vencen, con fuente oficial y fecha de verificación (Constitución IV).
+# Esquema y reglas: specs/001-curso-vibe-coding/data-model.md y backend/vibe_tutor/contenido.py.
+# probado: true solo después de comprobarlo en la realidad (specs/001-curso-vibe-coding/viabilidad.md).
+# Nada que prometa que algo no se paga puede figurar sin probado: true.
+
+# --- Planes ---
+
+- id: codex-planes
+  tema: planes
+  aplica_a: [codex]
+  sistema: [mac, windows]
+  texto: >-
+    Según la página de precios de OpenAI, Codex está incluido en todos los planes de ChatGPT,
+    también en el plan sin pago (que OpenAI llama "Free"), pero solo en la app de escritorio y
+    sujeto a disponibilidad; los límites de ese plan no están publicados. El plan Go cuesta US$8 por mes (US$6 visto desde Argentina)
+    y el Plus, US$20. Todavía no lo probamos: contalo como lo que informa OpenAI, sin prometerlo.
+  fuente: https://learn.chatgpt.com/docs/pricing
+  verificado: 2026-09-28
+  probado: false
+
+- id: claude-planes
+  tema: planes
+  aplica_a: [claude]
+  sistema: [mac, windows]
+  texto: >-
+    Claude Code no está en el plan sin pago de Claude: hace falta el plan Pro, que cuesta US$20
+    por mes (US$17 por mes en el plan anual), más impuestos. No hay un precio especial para
+    Argentina.
+  fuente: https://claude.com/pricing
+  verificado: 2026-09-27
+  probado: false
+
+# --- Instalar ---
+
+- id: codex-instalar-mac
+  tema: instalar
+  aplica_a: [codex]
+  sistema: [mac]
+  texto: >-
+    Bajá la app de escritorio de ChatGPT desde chatgpt.com/download e instalala. Entrá con tu
+    cuenta, elegí el modo Codex y abrí la carpeta del kit como proyecto. No hace falta usar la
+    terminal.
+  fuente: https://chatgpt.com/download
+  verificado: 2026-09-28
+  probado: false
+
+- id: codex-instalar-windows
+  tema: instalar
+  aplica_a: [codex]
+  sistema: [windows]
+  texto: >-
+    Instalá la app de ChatGPT desde la Microsoft Store (la nueva, no la que se llama "ChatGPT
+    Classic"). Entrá con tu cuenta, elegí el modo Codex y abrí la carpeta del kit como proyecto.
+    Funciona en Windows 10 y 11 sin usar la terminal.
+  fuente: https://learn.chatgpt.com/docs/windows/windows-app
+  verificado: 2026-09-28
+  probado: false
+
+# La dirección de descarga se verificó con WebFetch el 2026-09-28 en https://claude.com/download
+# (página oficial "Download Claude", con "Download for macOS" y "Download for Windows";
+# claude.ai/download redirige ahí). La pestaña Code y la carpeta de trabajo, en
+# https://code.claude.com/docs/en/desktop, verificada la misma fecha.
+- id: claude-instalar
+  tema: instalar
+  aplica_a: [claude]
+  sistema: [mac, windows]
+  texto: >-
+    Bajá la app de escritorio de Claude desde https://claude.com/download (hay versión para Mac y
+    para Windows) e instalala. Entrá con tu cuenta Pro y abrí la pestaña Code. Elegí la carpeta
+    del kit como carpeta de trabajo. No hace falta la terminal ni una cuenta de GitHub.
+  fuente: https://claude.com/download
+  verificado: 2026-09-28
+  probado: false
+
+# --- Ver la página en la computadora ---
+
+- id: ver-claude
+  tema: ver
+  aplica_a: [claude]
+  sistema: [mac, windows]
+  texto: >-
+    En la app de Claude, el navegador integrado abre archivos HTML de la carpeta: hacé clic en la
+    ruta de sitio/index.html cuando aparece en el chat, o usá Cmd + Shift + B (Ctrl + Shift + B en
+    Windows). Si no, doble clic en sitio/index.html desde la carpeta.
+  fuente: https://code.claude.com/docs/en/desktop
+  verificado: 2026-09-28
+  probado: false
+
+- id: ver-codex
+  tema: ver
+  aplica_a: [codex]
+  sistema: [mac, windows]
+  texto: >-
+    En la app de ChatGPT (modo Codex), el navegador integrado se abre con Cmd + Shift + B (Ctrl +
+    Shift + B en Windows). Si no, doble clic en sitio/index.html desde la carpeta.
+  fuente: https://learn.chatgpt.com/docs/browser
+  verificado: 2026-09-28
+  probado: false
+
+# --- Publicar ---
+
+- id: publicar-netlify-drop
+  tema: publicar
+  aplica_a: [codex, claude]
+  sistema: [mac, windows]
+  texto: >-
+    Abrí https://app.netlify.com/drop en el navegador y entrá con tu cuenta de Netlify (se puede
+    crear con Google). Arrastrá solo la carpeta sitio, nunca la carpeta entera del kit, y esperá
+    unos segundos: aparece un link que termina en .netlify.app. En las cuentas creadas desde el
+    28/7/2026 el proyecto nace privado: después de esa primera publicación, entrá a Project
+    configuration, General, Visitor access, Project visibility, y hacelo público. Recién ahí
+    cualquiera puede abrir el link. Para actualizar la página, arrastrá la carpeta de nuevo en la
+    sección de deploys del mismo sitio, así el link no cambia.
+  fuente: https://docs.netlify.com/manage/security/secure-access-to-sites/project-visibility/
+  verificado: 2026-09-28
+  probado: false
+
+- id: publicar-claude-artifact
+  tema: publicar
+  aplica_a: [claude]
+  sistema: [mac, windows]
+  texto: >-
+    Pedile a Claude que publique sitio/index.html como artifact y aprobá la publicación. Abrí el
+    link, tocá Share y elegí que lo pueda ver cualquiera con el link. Ojo: las fuentes oficiales se
+    contradicen sobre si ese link abre sin cuenta de Claude; hasta probarlo, para compartir usá
+    Netlify Drop.
+  fuente: https://code.claude.com/docs/en/artifacts
+  verificado: 2026-09-28
+  probado: false
+
+# --- Límites ---
+
+- id: limites-netlify
+  tema: limites
+  aplica_a: [codex, claude]
+  sistema: [mac, windows]
+  texto: >-
+    Según Netlify, el plan con el que arranca una cuenta nueva da 300 créditos por mes y cada
+    publicación usa 15. Las visitas también gastan créditos. En ese plan no se pueden comprar más
+    créditos: si se terminan, Netlify pausa todos los sitios de la cuenta hasta que se renuevan.
+    Probá en la computadora y publicá poco.
+  fuente: https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/
+  verificado: 2026-09-28
+  probado: false
+
+- id: limites-artifact
+  tema: limites
+  aplica_a: [claude]
+  sistema: [mac, windows]
+  texto: >-
+    Una página publicada desde Claude es un solo archivo HTML de hasta 16 MB, sin servidor. No
+    puede cargar imágenes de otros sitios: hay que incluirlas dentro del archivo.
+  fuente: https://code.claude.com/docs/en/artifacts
+  verificado: 2026-09-28
+  probado: false
+
+# --- Volver atrás ---
+
+- id: volver-checkpoints-claude
+  tema: volver-atras
+  aplica_a: [claude]
+  sistema: [mac, windows]
+  texto: >-
+    Además de guardar-version, Claude guarda un punto de control en cada pedido: con /rewind (o
+    Esc dos veces) se puede restaurar el código. No deshace lo que hicieron los comandos y no está
+    documentado si funciona en la app de escritorio.
+  fuente: https://code.claude.com/docs/en/checkpointing
+  verificado: 2026-09-28
+  probado: false
+
+# --- Ayuda (malestar serio; research §15) ---
+
+- id: ayuda-linea-nacional
+  tema: ayuda
+  aplica_a: [codex, claude]
+  sistema: [mac, windows]
+  texto: >-
+    Línea Nacional de Orientación y Apoyo en la Urgencia de Salud Mental (Ministerio de Salud):
+    0800-999-0091, las 24 horas, todos los días.
+  fuente: https://www.argentina.gob.ar/noticias/la-linea-nacional-de-orientacion-y-apoyo-en-la-urgencia-de-salud-mental-funciona-las-24-0
+  verificado: 2026-09-28
+  probado: false
+
+- id: ayuda-centro-asistencia-suicida
+  tema: ayuda
+  aplica_a: [codex, claude]
+  sistema: [mac, windows]
+  texto: >-
+    Centro de Asistencia al Suicida: 135 desde CABA y GBA, o 0800-345-1435 desde todo el país, de
+    8 a 24.
+  fuente: https://www.asistenciaalsuicida.org.ar/horarios-de-atencion
+  verificado: 2026-09-28
+  probado: false
+
+- id: ayuda-emergencias
+  tema: ayuda
+  aplica_a: [codex, claude]
+  sistema: [mac, windows]
+  texto: >-
+    Si hay riesgo inmediato: 911 en todo el país, o 107 (SAME).
+  fuente: https://www.argentina.gob.ar/tema/emergencias
+  verificado: 2026-09-28
+  probado: false

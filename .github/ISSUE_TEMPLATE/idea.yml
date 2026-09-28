@@ -1,0 +1,47 @@
+name: Idea o mejora
+description: Algo que el curso, la web, el kit o el despliegue podrían hacer mejor.
+title: "[idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por proponer. El curso existe para que gente que nunca programó publique algo propio, sin que le cueste mucho a quien lo da: contanos cómo tu idea suma a eso.
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qué problema resuelve
+      description: Quién lo tiene (alumnos, quien da el curso, quien lo despliega) y cuándo aparece.
+    validations:
+      required: true
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Qué proponés
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas que pensaste
+  - type: dropdown
+    id: tamano
+    attributes:
+      label: Tamaño
+      description: Los cambios grandes se trabajan con spec-kit (ver CONTRIBUTING.md).
+      options:
+        - Chico (un texto, un ajuste, un arreglo)
+        - Mediano (una pantalla o una función nueva)
+        - Grande (un módulo, una integración o un cambio de diseño)
+        - No sé
+  - type: textarea
+    id: costo-y-datos
+    attributes:
+      label: Costo y datos
+      description: ¿Suma costo por alumno, guarda datos nuevos o necesita otro servicio externo?
+  - type: checkboxes
+    id: ayuda
+    attributes:
+      label: ¿Te sumás?
+      options:
+        - label: Me gustaría hacerlo yo, con ayuda si hace falta.

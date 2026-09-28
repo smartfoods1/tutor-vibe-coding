@@ -1,0 +1,25 @@
+[Unit]
+Description=Tutor de vibe coding (la web del curso)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=vibe-tutor
+Group=vibe-tutor
+WorkingDirectory=/opt/vibe-tutor
+Environment=VIBE_ENV_FILE=/etc/vibe-tutor/.env
+ExecStart=/opt/vibe-tutor/.venv/bin/uvicorn --factory vibe_tutor.main:crear_app --host 127.0.0.1 --port 8340 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/vibe-tutor/data
+# Topes para no afectar a otros servicios del servidor (ffmpeg y la voz corren dentro de este servicio).
+MemoryMax=512M
+CPUQuota=100%
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

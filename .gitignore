@@ -1,0 +1,55 @@
+# Secretos y configuración local: nunca al repo
+.env
+.env.*
+backend/.env*
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+deploy/despliegue.env
+*.pem
+*.key
+!**/.env.example
+
+# Datos de alumnos y bases locales
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*
+
+# Audios del curso: se graban por instalación y no se versionan (solo su README)
+contenido/audios/*.mp3
+contenido/audios/*.md
+!contenido/audios/README.md
+
+# Kits armados y otros paquetes
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node y Vite
+node_modules/
+dist/
+.vite/
+frontend/dev-dist/
+
+# Claude Code: permisos personales de cada quien
+.claude/settings.local.json
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Varios
+*.log
+build/
+coverage/

@@ -1,0 +1,15 @@
+KIT DE PRUEBA DEL CURSO (pruebas de viabilidad; todavía no es para alumnos)
+
+Con Claude (app de escritorio, plan Pro):
+1. Abrí la app de Claude y entrá a la pestaña Code.
+2. Elegí esta carpeta como carpeta de trabajo.
+3. Escribí: empecemos
+
+Con Codex (app de escritorio de ChatGPT, modo Codex):
+1. Abrí la app de ChatGPT y elegí Codex.
+2. Abrí esta carpeta como proyecto. Si pregunta si confiás en la carpeta, anotá qué pregunta
+   exactamente y contestá que sí.
+3. Escribí: empecemos
+
+Qué probar: el "Guion de 10 turnos" de specs/001-curso-vibe-coding/quickstart.md.
+Dónde anotar: specs/001-curso-vibe-coding/viabilidad.md.

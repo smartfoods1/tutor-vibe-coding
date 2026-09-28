@@ -1,0 +1,5 @@
+Acá se guardan las copias de la carpeta sitio que hace "guardar versión": una carpeta por copia,
+con la fecha, la hora y, si le pusiste uno, un nombre corto (por ejemplo 2026-10-02_1930-primera).
+
+Son tu red de seguridad. No las cambies ni las muevas. Para mirar una versión vieja sin la app,
+abrí el archivo index.html de su carpeta con doble clic.

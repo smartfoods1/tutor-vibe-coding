@@ -1,0 +1,92 @@
+Licencia del contenido del curso: Creative Commons Atribución 4.0 Internacional (CC BY 4.0)
+==========================================================================================
+
+Copyright (c) 2026 Andrés (@specialandres)
+
+El contenido del curso y la documentación de diseño de este repositorio se publican bajo la
+licencia Creative Commons Atribución 4.0 Internacional (CC BY 4.0).
+
+Texto legal oficial en español: https://creativecommons.org/licenses/by/4.0/legalcode.es
+Resumen oficial: https://creativecommons.org/licenses/by/4.0/deed.es
+
+Lo que sigue es un resumen para orientarte. No reemplaza al texto legal: si hay diferencias,
+manda el texto legal.
+
+
+A qué se aplica
+---------------
+
+- contenido/, salvo contenido/kit/, contenido/ejemplos/ y contenido/machete.yaml: el mapa del
+  curso (curriculo.md), las guías de los módulos de la web, el prompt del tutor, los mails, los
+  textos legales (como redacción) y los informes de investigación.
+- specs/: la especificación, el plan, los contratos, el modelo de datos y las tareas.
+- .specify/memory/: la constitución del proyecto.
+- docs/: las guías para desarrollar, desplegar y adaptar el curso, y sus capturas (docs/img/).
+
+No se aplica a:
+
+- contenido/kit/ y contenido/ejemplos/: son de dominio público (CC0 1.0). La carpeta y la página
+  que arma cada alumno son suyas. Ver contenido/kit/LICENCIA.txt.
+- contenido/machete.yaml: CC0 1.0, porque viaja dentro de cada kit (curso/machete.md y las líneas
+  de ayuda de AGENTS.md).
+- El código (backend/, frontend/, deploy/, .github/ y los tests): licencia MIT, en LICENSE.
+- Lo que viene de otros proyectos, como spec-kit en .specify/ y .claude/: conserva su licencia.
+  Ver THIRD_PARTY_NOTICES.md.
+
+
+Qué podés hacer
+---------------
+
+- Compartir: copiar y redistribuir el contenido en cualquier medio o formato.
+- Adaptar: remezclarlo, transformarlo y construir a partir de él, por ejemplo para armar tu propio
+  curso, en tu país o para tu comunidad.
+- Para cualquier fin, incluso comercial.
+
+
+Con una condición: la atribución
+--------------------------------
+
+- Das crédito de forma adecuada: nombrás al autor y la obra.
+- Ponés un link a la licencia.
+- Indicás si hiciste cambios.
+- No das a entender que el autor te respalda a vos o a tu uso del contenido.
+
+No podés sumar términos legales ni medidas técnicas que les impidan a otras personas hacer lo que
+la licencia permite.
+
+
+Qué queda afuera de esta licencia
+---------------------------------
+
+- Textos normativos transcriptos (leyes, decretos, resoluciones y sus fragmentos citados en
+  contenido/legal/ y en otros archivos): no son obra del autor y se rigen por sus propias reglas.
+- Citas breves de terceros (por ejemplo, en contenido/investigacion/ y en curriculo.md): siguen
+  siendo de sus autores y se usan a título de cita, con su fuente.
+- Marcas y nombres de productos (Claude, Claude Code, Codex, ChatGPT, Gemini, Netlify, Resend,
+  Cloudflare Turnstile y otros): pertenecen a sus dueños. Nombrarlos no implica ninguna relación
+  con ellos.
+- El nombre, la voz y la identidad del autor: la licencia no te autoriza a usar el nombre de
+  Andrés, su voz (los audios del curso no están en el repositorio), su imagen ni su marca personal
+  para presentar tu curso como si fuera de él o como si él lo avalara. Si adaptás el curso, ponele
+  tu nombre y tu voz.
+
+
+Sin garantía
+------------
+
+El contenido se ofrece tal cual. Los datos que se vencen (precios, planes, pasos de instalación)
+cambian: verificalos antes de usarlos. Los textos legales son borradores pensados para Argentina y
+no son asesoramiento legal: si los usás, hacelos revisar por alguien que ejerza en tu país.
+
+
+Atribución modelo
+-----------------
+
+Podés copiar y adaptar esta línea:
+
+    Basado en «Tutor de vibe coding», de Andrés (@specialandres), con licencia CC BY 4.0
+    (https://creativecommons.org/licenses/by/4.0/deed.es). Original: https://github.com/smartfoods1/tutor-vibe-coding (o el
+    repositorio del que partiste). Cambios: <qué cambiaste, por ejemplo "adaptado a Chile y con
+    otro prompt">.
+
+En una página web alcanza con una línea al pie con los mismos datos y los links.

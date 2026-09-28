@@ -1,0 +1,72 @@
+name: Algo no funciona
+description: Un error en la web, el tutor, la voz, el kit, el panel o el despliegue.
+title: "[error] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por avisar. Antes de seguir:
+        - **No pegues datos de alumnos** (mails, nombres, ideas, conversaciones ni capturas) ni claves o contenidos de tu `.env`.
+        - Si es un problema de seguridad, no lo reportes acá: seguí [SECURITY.md](https://github.com/smartfoods1/tutor-vibe-coding/blob/main/SECURITY.md).
+  - type: dropdown
+    id: parte
+    attributes:
+      label: ¿Dónde pasa?
+      options:
+        - La web (inscripción, módulos 1 a 3, mi idea, galería)
+        - El tutor de la web
+        - La voz (dictado o respuesta hablada)
+        - El kit en Claude Code
+        - El kit en Codex
+        - El panel de administración
+        - El despliegue (scripts, nginx, servicio)
+        - Desarrollo local o tests
+        - Otro
+    validations:
+      required: true
+  - type: textarea
+    id: que-paso
+    attributes:
+      label: Qué pasó
+      description: Contalo con tus palabras. Si hay un mensaje de error, copialo.
+    validations:
+      required: true
+  - type: textarea
+    id: que-esperabas
+    attributes:
+      label: Qué esperabas que pasara
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Cómo repetirlo
+      description: Los pasos, en orden. Si es del tutor, usá un ejemplo inventado que provoque lo mismo.
+      placeholder: |
+        1. Entré al módulo 2...
+        2. Escribí...
+        3. El tutor respondió...
+  - type: input
+    id: version
+    attributes:
+      label: Versión
+      description: El commit (git rev-parse --short HEAD) o, en un servidor, lo que dice contenido/VERSION.
+  - type: textarea
+    id: entorno
+    attributes:
+      label: Entorno
+      description: Navegador y sistema, si fue en local o en un servidor, y si estaba el modo demo.
+  - type: textarea
+    id: registros
+    attributes:
+      label: Registros
+      description: Las líneas relevantes del registro (por ejemplo, journalctl -u vibe-tutor). Revisá que no tengan mails, claves ni datos de alumnos.
+      render: shell
+  - type: checkboxes
+    id: privacidad
+    attributes:
+      label: Privacidad
+      options:
+        - label: Revisé que el reporte no tenga datos de alumnos ni claves.
+          required: true

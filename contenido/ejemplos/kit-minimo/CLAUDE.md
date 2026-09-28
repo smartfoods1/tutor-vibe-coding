@@ -1,0 +1,2 @@
+@AGENTS.md
+@bitacora.md

@@ -1,0 +1,6 @@
+# Los reportes de seguridad no van por issues: GitHub muestra el link a SECURITY.md en esta pantalla.
+blank_issues_enabled: false
+contact_links:
+  - name: Tengo una duda
+    url: https://github.com/smartfoods1/tutor-vibe-coding/discussions
+    about: Preguntas sobre cómo usar, adaptar o desplegar el curso.
