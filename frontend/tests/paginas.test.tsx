@@ -34,6 +34,30 @@ const TEXTOS_LEGALES = {
   }),
 }
 
+/** La función del siguiente paso prendida: sus tres textos, como los manda GET /api/config. */
+const SIGUIENTE_PASO = {
+  nombre: 'el curso de prueba',
+  pregunta: '¿Tenés un negocio que ya vende?',
+  texto: 'Más adelante abre un curso para armar el sistema que lo gestiona.',
+}
+const TEXTO_AVISO = 'Quiero que me avisen por mail cuando abra el curso de prueba.'
+const TEXTOS_LEGALES_CON_AVISO = {
+  'GET /api/legal/consentimientos': json({
+    version: '2026-09-30',
+    textos: {
+      mails_curso: 'Acepto recibir los mails del curso.',
+      transferencia: 'Acepto que mis datos se procesen con proveedores en Estados Unidos.',
+      novedades: 'Quiero recibir las novedades del curso por mail.',
+      siguiente_paso: TEXTO_AVISO,
+    },
+    texto_md: '',
+  }),
+}
+
+function permisos(siguiente_paso: boolean) {
+  return { mails_curso: true, novedades: false, siguiente_paso }
+}
+
 const AUDIO_1 = { modulo: 1, url: '/audios/modulo-1.mp3', transcripcion: null }
 
 /** Hace que el navegador de prueba parezca tener micrófono (jsdom no trae MediaRecorder). */
@@ -139,6 +163,38 @@ describe('Modulo', () => {
     fireEvent.click(volver)
     expect(await screen.findByText('Hola de nuevo.')).toBeInTheDocument()
     expect(llamadasA(espia, 'POST /api/modulos/1/sesion')).toHaveLength(1)
+  })
+
+  it('al volver al módulo 2 con la idea guardada y sin terminar, el chat vuelve a mostrar sus botones', async () => {
+    simularFetch({
+      ...CONFIG,
+      'GET /api/yo': yo({ modulo_actual: 2, avance: [{ modulo: 1, completado: '2026-09-28', via: 'tutor' }], idea: { version: 2, actualizada: '2026-09-29T12:00:00Z' } }),
+      'POST /api/modulos/2/sesion': json({ id: 6, retomada: true }),
+      'GET /api/sesiones/6': json({ id: 6, modulo: 2, mensajes: [{ rol: 'tutor', texto: 'Listo, la guardé. ¿Te representa?' }] }),
+    })
+    abrir('/modulo/2')
+    expect(await screen.findByRole('button', { name: 'Está bien así' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Quiero cambiar algo' })).toBeInTheDocument()
+  })
+
+  it('en un módulo 2 ya terminado, "volver a conversar" no muestra los botones de la idea', async () => {
+    simularFetch({
+      ...CONFIG,
+      'GET /api/yo': yo({
+        modulo_actual: 3,
+        avance: [
+          { modulo: 1, completado: '2026-09-28', via: 'tutor' },
+          { modulo: 2, completado: '2026-09-29', via: 'tutor' },
+        ],
+        idea: { version: 2, actualizada: '2026-09-29T12:00:00Z' },
+      }),
+      'POST /api/modulos/2/sesion': json({ id: 6, retomada: true }),
+      'GET /api/sesiones/6': json({ id: 6, modulo: 2, mensajes: [{ rol: 'tutor', texto: 'Hola de nuevo.' }] }),
+    })
+    abrir('/modulo/2')
+    fireEvent.click(await screen.findByRole('button', { name: /volver a conversar con el tutor/i }))
+    expect(await screen.findByText('Hola de nuevo.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Está bien así' })).toBeNull()
   })
 
   it('el audio y la aclaración de la voz nombran al autor configurado', async () => {
@@ -445,6 +501,177 @@ describe('Mostrar', () => {
       uso_contenido: false,
     })
   })
+
+  describe('el siguiente paso', () => {
+    type Manejador = (init: RequestInit | undefined) => Response | Promise<Response>
+
+    /** /mostrar con la función según `paso` (null = apagada) y el registro que devuelve `pregunta`. */
+    function rutas({
+      paso = SIGUIENTE_PASO,
+      pregunta = true,
+      responder,
+    }: { paso?: typeof SIGUIENTE_PASO | null; pregunta?: boolean; responder?: Manejador } = {}) {
+      return simularFetch({
+        ...config({ siguiente_paso: paso }),
+        ...TEXTOS_LEGALES_CON_AVISO,
+        'GET /api/yo': yo({ modulo_actual: 7 }),
+        'POST /api/links': json({ id: 7, mail: true, pregunta_siguiente_paso: pregunta }, 201),
+        'POST /api/siguiente-paso':
+          responder ??
+          ((init) => json({ consentimientos: permisos((cuerpoJson(init) as { aviso: boolean }).aviso) })),
+      })
+    }
+
+    /** Registra un link y espera la pantalla de "link registrado". */
+    async function registrarLink() {
+      abrir('/mostrar')
+      fireEvent.change(await screen.findByLabelText(/el link de tu página/i), {
+        target: { value: 'mi-idea.netlify.app' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: /registrar mi link/i }))
+      await screen.findByText(/tu link quedó registrado/i)
+    }
+
+    const bloque = () => screen.findByRole('region', { name: SIGUIENTE_PASO.pregunta })
+
+    it('después del primer link pregunta con Sí, No y Ahora no, sin mostrar todavía el texto', async () => {
+      const espia = rutas()
+      await registrarLink()
+      const pregunta = await bloque()
+      expect(within(pregunta).getByRole('button', { name: 'Sí' })).toBeEnabled()
+      expect(within(pregunta).getByRole('button', { name: 'No' })).toBeEnabled()
+      expect(within(pregunta).getByRole('button', { name: 'Ahora no' })).toBeEnabled()
+      // Nadie ve el texto del siguiente paso sin contestar que sí (SC-004).
+      expect(screen.queryByText(SIGUIENTE_PASO.texto)).toBeNull()
+      expect(screen.queryByRole('checkbox', { name: TEXTO_AVISO })).toBeNull()
+      // El resto de la pantalla queda igual.
+      expect(screen.getByText(/te mandamos un mail con tu link/i)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /volver al inicio/i })).toHaveAttribute('href', '/inicio')
+      expect(llamadasA(espia, 'POST /api/siguiente-paso')).toHaveLength(0)
+      expect(llamadasA(espia, 'GET /api/legal/consentimientos')).toHaveLength(0)
+    })
+
+    it('si el registro no la pide (otro link, o ya contestó), no pregunta', async () => {
+      rutas({ pregunta: false })
+      await registrarLink()
+      expect(screen.queryByText(SIGUIENTE_PASO.pregunta)).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Sí' })).toBeNull()
+    })
+
+    it('con la función inactiva no pregunta, aunque el registro traiga la marca', async () => {
+      rutas({ paso: null, pregunta: true })
+      await registrarLink()
+      expect(screen.queryByText(SIGUIENTE_PASO.pregunta)).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Sí' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Ahora no' })).toBeNull()
+    })
+
+    it('"Sí" muestra el texto y la casilla desmarcada, sin precios y sin mandar nada todavía', async () => {
+      const espia = rutas()
+      await registrarLink()
+      const pregunta = await bloque()
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'Sí' }))
+      const casilla = await within(pregunta).findByRole('checkbox', { name: TEXTO_AVISO })
+      expect(casilla).not.toBeChecked()
+      expect(within(pregunta).getByText(SIGUIENTE_PASO.texto)).toBeInTheDocument()
+      expect(within(pregunta).getByRole('button', { name: 'Confirmar' })).toBeEnabled()
+      expect(pregunta.textContent).not.toMatch(/[$\d]|precio/i)
+      expect(llamadasA(espia, 'POST /api/siguiente-paso')).toHaveLength(0)
+    })
+
+    it('confirmar con la casilla marcada manda el "sí" con el aviso y avisa que le vamos a escribir', async () => {
+      const espia = rutas()
+      await registrarLink()
+      const pregunta = await bloque()
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'Sí' }))
+      fireEvent.click(await within(pregunta).findByRole('checkbox', { name: TEXTO_AVISO }))
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'Confirmar' }))
+      expect(await within(pregunta).findByText(/te vamos a avisar por mail cuando abra/i)).toBeInTheDocument()
+      const llamadas = llamadasA(espia, 'POST /api/siguiente-paso')
+      expect(llamadas).toHaveLength(1)
+      expect(cuerpoJson(llamadas[0][1])).toEqual({ respuesta: 'si', aviso: true })
+      expect(within(pregunta).getByRole('link', { name: /mis datos/i })).toHaveAttribute('href', '/mis-datos')
+      expect(within(pregunta).queryByRole('button')).toBeNull()
+      expect(within(pregunta).queryByRole('checkbox')).toBeNull()
+    })
+
+    it('confirmar sin marcar la casilla manda el "sí" sin aviso y solo agradece', async () => {
+      const espia = rutas()
+      await registrarLink()
+      const pregunta = await bloque()
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'Sí' }))
+      await within(pregunta).findByRole('checkbox', { name: TEXTO_AVISO })
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'Confirmar' }))
+      expect(await within(pregunta).findByText(/gracias por contarnos/i)).toBeInTheDocument()
+      expect(cuerpoJson(llamadasA(espia, 'POST /api/siguiente-paso')[0][1])).toEqual({ respuesta: 'si', aviso: false })
+      expect(within(pregunta).queryByText(/te vamos a avisar/i)).toBeNull()
+    })
+
+    it('"No" registra la respuesta y agradece, sin el texto del siguiente paso', async () => {
+      const espia = rutas()
+      await registrarLink()
+      const pregunta = await bloque()
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'No' }))
+      expect(await within(pregunta).findByText(/gracias por contarnos/i)).toBeInTheDocument()
+      expect(cuerpoJson(llamadasA(espia, 'POST /api/siguiente-paso')[0][1])).toEqual({ respuesta: 'no', aviso: false })
+      expect(screen.queryByText(SIGUIENTE_PASO.texto)).toBeNull()
+      expect(screen.queryByRole('checkbox', { name: TEXTO_AVISO })).toBeNull()
+      expect(within(pregunta).queryByRole('button')).toBeNull()
+      expect(llamadasA(espia, 'GET /api/legal/consentimientos')).toHaveLength(0)
+    })
+
+    it('"Ahora no" cierra la pregunta sin llamar a nada', async () => {
+      const espia = rutas()
+      await registrarLink()
+      const pregunta = await bloque()
+      const llamadas = espia.mock.calls.length
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'Ahora no' }))
+      expect(screen.queryByText(SIGUIENTE_PASO.pregunta)).toBeNull()
+      await act(() => new Promise((listo) => setTimeout(listo, 30)))
+      expect(espia.mock.calls.length).toBe(llamadas)
+      expect(screen.getByText(/tu link quedó registrado/i)).toBeInTheDocument()
+    })
+
+    it('mientras guarda no deja mandar dos veces', async () => {
+      let soltar: (respuesta: Response) => void = () => undefined
+      const espia = rutas({ responder: () => new Promise<Response>((listo) => (soltar = listo)) })
+      await registrarLink()
+      const pregunta = await bloque()
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'Sí' }))
+      const casilla = await within(pregunta).findByRole('checkbox', { name: TEXTO_AVISO })
+      fireEvent.click(casilla)
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'Confirmar' }))
+      const guardando = within(pregunta).getByRole('button', { name: /guardando/i })
+      expect(guardando).toBeDisabled()
+      expect(casilla).toBeDisabled()
+      fireEvent.click(guardando)
+      expect(llamadasA(espia, 'POST /api/siguiente-paso')).toHaveLength(1)
+      await act(async () => soltar(json({ consentimientos: permisos(true) })))
+      expect(await within(pregunta).findByText(/te vamos a avisar por mail/i)).toBeInTheDocument()
+      expect(llamadasA(espia, 'POST /api/siguiente-paso')).toHaveLength(1)
+    })
+
+    it('si falla, lo dice sin tapar el link registrado y deja probar de nuevo', async () => {
+      let intentos = 0
+      const espia = rutas({
+        responder: () => {
+          intentos += 1
+          if (intentos === 1) throw new TypeError('Failed to fetch')
+          return json({ consentimientos: permisos(false) })
+        },
+      })
+      await registrarLink()
+      const pregunta = await bloque()
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'No' }))
+      expect(await within(pregunta).findByRole('alert')).toHaveTextContent(/no hay conexión/i)
+      expect(screen.getByText(/tu link quedó registrado/i)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /volver al inicio/i })).toBeInTheDocument()
+      fireEvent.click(within(pregunta).getByRole('button', { name: 'No' }))
+      expect(await within(pregunta).findByText(/gracias por contarnos/i)).toBeInTheDocument()
+      expect(within(pregunta).queryByRole('alert')).toBeNull()
+      expect(llamadasA(espia, 'POST /api/siguiente-paso')).toHaveLength(2)
+    })
+  })
 })
 
 describe('MisDatos', () => {
@@ -585,6 +812,111 @@ describe('MisDatos', () => {
         name: 'Ana lo puede usar como contenido, por ejemplo para mostrarlo en sus redes.',
       }),
     ).toBeInTheDocument()
+  })
+
+  describe('el aviso del siguiente paso', () => {
+    /** Mis datos con la función según `paso` (null = apagada) y el aviso del alumno en `conAviso`. */
+    function rutas({
+      paso = SIGUIENTE_PASO,
+      conAviso,
+      legales = TEXTOS_LEGALES_CON_AVISO['GET /api/legal/consentimientos'],
+      cambiar = (init: RequestInit | undefined) =>
+        json(permisos((cuerpoJson(init) as { siguiente_paso: boolean }).siguiente_paso)),
+    }: {
+      paso?: typeof SIGUIENTE_PASO | null
+      conAviso: boolean
+      legales?: Response
+      cambiar?: (init: RequestInit | undefined) => Response
+    }) {
+      return simularFetch({
+        ...config({ siguiente_paso: paso }),
+        'GET /api/legal/consentimientos': legales,
+        'GET /api/yo': yo({ consentimientos: permisos(conAviso) }),
+        'GET /api/links': json([]),
+        'PUT /api/consentimientos': cambiar,
+      })
+    }
+
+    it('con la función activa se puede pedir desde acá, con el texto legal vigente', async () => {
+      const espia = rutas({ conAviso: false })
+      abrir('/mis-datos')
+      const casilla = await screen.findByRole('checkbox', { name: TEXTO_AVISO })
+      expect(casilla).not.toBeChecked()
+      expect(casilla).toBeEnabled()
+      fireEvent.click(casilla)
+      await waitFor(() => expect(llamadasA(espia, 'PUT /api/consentimientos')).toHaveLength(1))
+      expect(cuerpoJson(llamadasA(espia, 'PUT /api/consentimientos')[0][1])).toEqual({ siguiente_paso: true })
+      await waitFor(() => expect(screen.getByRole('checkbox', { name: TEXTO_AVISO })).toBeChecked())
+      await waitFor(() => expect(screen.getByRole('checkbox', { name: TEXTO_AVISO })).toBeEnabled())
+    })
+
+    it('con la función activa, quien lo pidió lo ve marcado y lo saca', async () => {
+      const espia = rutas({ conAviso: true })
+      abrir('/mis-datos')
+      const casilla = await screen.findByRole('checkbox', { name: TEXTO_AVISO })
+      expect(casilla).toBeChecked()
+      fireEvent.click(casilla)
+      await waitFor(() => expect(llamadasA(espia, 'PUT /api/consentimientos')).toHaveLength(1))
+      expect(cuerpoJson(llamadasA(espia, 'PUT /api/consentimientos')[0][1])).toEqual({ siguiente_paso: false })
+      await waitFor(() => expect(screen.getByRole('checkbox', { name: TEXTO_AVISO })).not.toBeChecked())
+      await waitFor(() => expect(screen.getByRole('checkbox', { name: TEXTO_AVISO })).toBeEnabled())
+    })
+
+    it('con la función apagada, el aviso pedido sigue a la vista y se puede sacar, pero no volver a pedir', async () => {
+      const espia = rutas({ paso: null, conAviso: true })
+      abrir('/mis-datos')
+      const casilla = await screen.findByRole('checkbox', { name: TEXTO_AVISO })
+      expect(casilla).toBeChecked()
+      fireEvent.click(casilla)
+      await waitFor(() => expect(llamadasA(espia, 'PUT /api/consentimientos')).toHaveLength(1))
+      expect(cuerpoJson(llamadasA(espia, 'PUT /api/consentimientos')[0][1])).toEqual({ siguiente_paso: false })
+      await act(() => new Promise((listo) => setTimeout(listo, 30)))
+      const sacada = screen.getByRole('checkbox', { name: TEXTO_AVISO })
+      expect(sacada).not.toBeChecked()
+      expect(sacada).toBeDisabled()
+    })
+
+    it('con la función apagada y sin aviso no muestra la casilla ni pide el texto legal', async () => {
+      const espia = rutas({ paso: null, conAviso: false })
+      abrir('/mis-datos')
+      await screen.findByText(/todavía no registraste ningún link/i)
+      expect(screen.queryByRole('checkbox', { name: TEXTO_AVISO })).toBeNull()
+      expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+      expect(llamadasA(espia, 'GET /api/legal/consentimientos')).toHaveLength(0)
+    })
+
+    it('si el servidor no deja pedirlo, la casilla vuelve atrás y dice por qué', async () => {
+      rutas({
+        conAviso: false,
+        cambiar: () => json({ detalle: 'El aviso no se puede pedir en este momento.' }, 409),
+      })
+      abrir('/mis-datos')
+      fireEvent.click(await screen.findByRole('checkbox', { name: TEXTO_AVISO }))
+      expect(await screen.findByText('El aviso no se puede pedir en este momento.')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole('checkbox', { name: TEXTO_AVISO })).not.toBeChecked())
+    })
+
+    it('sin el texto legal no deja pedirlo, pero quien lo tiene lo puede sacar igual', async () => {
+      const sinTexto = json({ detalle: 'Algo falló.' }, 500)
+      const espia = rutas({ conAviso: false, legales: sinTexto })
+      const { unmount } = render(
+        <MemoryRouter initialEntries={['/mis-datos']}>
+          <App />
+        </MemoryRouter>,
+      )
+      expect(await screen.findByText(/no pudimos cargar el permiso del aviso/i)).toBeInTheDocument()
+      expect(screen.queryByRole('checkbox', { name: /aviso/i })).toBeNull()
+      expect(llamadasA(espia, 'PUT /api/consentimientos')).toHaveLength(0)
+      unmount()
+
+      const otro = rutas({ paso: null, conAviso: true, legales: sinTexto })
+      abrir('/mis-datos')
+      const casilla = await screen.findByRole('checkbox', { name: /aviso por mail cuando abra/i })
+      expect(casilla).toBeChecked()
+      fireEvent.click(casilla)
+      await waitFor(() => expect(llamadasA(otro, 'PUT /api/consentimientos')).toHaveLength(1))
+      expect(cuerpoJson(llamadasA(otro, 'PUT /api/consentimientos')[0][1])).toEqual({ siguiente_paso: false })
+    })
   })
 })
 

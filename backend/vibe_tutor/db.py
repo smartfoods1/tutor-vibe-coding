@@ -213,6 +213,37 @@ MIGRACIONES = (
     ALTER TABLE eventos_nueva RENAME TO eventos;
     CREATE INDEX idx_eventos_tipo ON eventos (tipo, creado);
     """,
+    # 5: el siguiente paso al terminar el curso (spec 002, SIGUIENTE_PASO). Cada alumno anota si ya
+    # contestó la pregunta (no qué contestó), los permisos suman el aviso "siguiente_paso" y las
+    # respuestas se cuentan en una tabla sin alumno ni fecha, así no quedan con nadie. Para cambiar el
+    # CHECK de los permisos se recrea la tabla como en la 4: mismas filas, ids, fechas e índice, y el
+    # contador de ids sigue donde estaba.
+    f"""
+    ALTER TABLE alumnos ADD COLUMN siguiente_paso_respondido INTEGER NOT NULL DEFAULT 0
+        CHECK (siguiente_paso_respondido IN (0, 1));
+
+    CREATE TABLE consentimientos_nueva (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        alumno_id INTEGER NOT NULL REFERENCES alumnos (id) ON DELETE CASCADE,
+        tipo TEXT NOT NULL CHECK (tipo IN ('mails_curso', 'transferencia', 'novedades', 'siguiente_paso')),
+        valor INTEGER NOT NULL CHECK (valor IN (0, 1)),
+        version_texto TEXT NOT NULL,
+        creado TEXT NOT NULL DEFAULT {AHORA_UTC}
+    );
+    INSERT INTO consentimientos_nueva (id, alumno_id, tipo, valor, version_texto, creado)
+        SELECT id, alumno_id, tipo, valor, version_texto, creado FROM consentimientos ORDER BY id;
+    DELETE FROM sqlite_sequence WHERE name = 'consentimientos_nueva';
+    INSERT INTO sqlite_sequence (name, seq)
+        SELECT 'consentimientos_nueva', seq FROM sqlite_sequence WHERE name = 'consentimientos';
+    DROP TABLE consentimientos;
+    ALTER TABLE consentimientos_nueva RENAME TO consentimientos;
+    CREATE INDEX idx_consentimientos_alumno ON consentimientos (alumno_id, tipo, id);
+
+    CREATE TABLE respuestas_siguiente_paso (
+        respuesta TEXT NOT NULL PRIMARY KEY CHECK (respuesta IN ('si', 'no')),
+        total INTEGER NOT NULL DEFAULT 0 CHECK (total >= 0)
+    );
+    """,
 )
 
 

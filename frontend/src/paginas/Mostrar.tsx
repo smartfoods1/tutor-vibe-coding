@@ -4,7 +4,7 @@ import { useConfig } from '../componentes/Configuracion.tsx'
 import { Cargando, MensajeError, mensajeDe } from '../componentes/Estados.tsx'
 import Pagina from '../componentes/Pagina.tsx'
 import PedidoPendiente from '../componentes/PedidoPendiente.tsx'
-import { api, cuentaPendiente } from '../lib/api.ts'
+import { api, cuentaPendiente, type PedidoSiguientePaso } from '../lib/api.ts'
 import { textoUsoContenido } from '../lib/marca.ts'
 import { useCarga } from '../lib/useCarga.ts'
 import { normalizarLink } from '../lib/validar.ts'
@@ -13,7 +13,7 @@ import { normalizarLink } from '../lib/validar.ts'
 const MODULO_MINIMO = 4
 
 export default function Mostrar() {
-  const { autorNombre } = useConfig()
+  const { autorNombre, siguientePaso } = useConfig()
   // Si la sesión venció, lleva a entrar antes de que la persona escriba nada.
   const yo = useCarga(() => api.yo())
   const [link, setLink] = useState('')
@@ -22,7 +22,8 @@ export default function Mostrar() {
   const [contenido, setContenido] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
-  const [listo, setListo] = useState<{ mail: boolean } | null>(null)
+  // "pregunta": el servidor pide la pregunta del siguiente paso (solo con el primer link).
+  const [listo, setListo] = useState<{ mail: boolean; pregunta: boolean } | null>(null)
 
   async function registrar(evento: FormEvent) {
     evento.preventDefault()
@@ -40,7 +41,7 @@ export default function Mostrar() {
         mostrar_galeria: galeria,
         uso_contenido: contenido,
       })
-      setListo({ mail: respuesta?.mail === true })
+      setListo({ mail: respuesta?.mail === true, pregunta: respuesta?.pregunta_siguiente_paso === true })
     } catch (e) {
       setError(mensajeDe(e))
     } finally {
@@ -76,6 +77,9 @@ export default function Mostrar() {
             Ver la galería
           </Link>
         </p>
+        {listo.pregunta && siguientePaso && (
+          <PreguntaSiguientePaso pregunta={siguientePaso.pregunta} texto={siguientePaso.texto} />
+        )}
       </Pagina>
     )
   }
@@ -179,5 +183,147 @@ export default function Mostrar() {
         </button>
       </form>
     </Pagina>
+  )
+}
+
+type Paso = { en: 'pregunta' } | { en: 'oferta' } | { en: 'cerrada' } | { en: 'respondida'; pedido: PedidoSiguientePaso }
+
+/**
+ * La pregunta del siguiente paso (spec 002), una sola vez, después del primer link. Los textos son de
+ * la instalación. "Ahora no" la cierra sin mandar nada; solo quien contesta que sí ve el texto, con la
+ * casilla del aviso desmarcada. Si algo falla, se avisa acá: el link ya quedó registrado igual.
+ */
+function PreguntaSiguientePaso({ pregunta, texto }: { pregunta: string; texto: string }) {
+  const [paso, setPaso] = useState<Paso>({ en: 'pregunta' })
+  const [aviso, setAviso] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function responder(pedido: PedidoSiguientePaso) {
+    setError(null)
+    setEnviando(true)
+    try {
+      await api.responderSiguientePaso(pedido)
+      setPaso({ en: 'respondida', pedido })
+    } catch (e) {
+      setError(mensajeDe(e))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  if (paso.en === 'cerrada') return null
+  const dijoQueSi = paso.en === 'oferta' || (paso.en === 'respondida' && paso.pedido.respuesta === 'si')
+
+  return (
+    <section aria-labelledby="siguiente-paso" className="tarjeta mt-10">
+      <h2 id="siguiente-paso" className="text-[1.3rem] font-bold">
+        {pregunta}
+      </h2>
+      {paso.en === 'pregunta' && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="boton boton-sec boton-chico"
+            disabled={enviando}
+            onClick={() => {
+              setError(null)
+              setPaso({ en: 'oferta' })
+            }}
+          >
+            Sí
+          </button>
+          <button
+            type="button"
+            className="boton boton-sec boton-chico"
+            disabled={enviando}
+            onClick={() => void responder({ respuesta: 'no', aviso: false })}
+          >
+            No
+          </button>
+          <button
+            type="button"
+            className="enlace min-h-11 px-2 disabled:opacity-50"
+            disabled={enviando}
+            onClick={() => setPaso({ en: 'cerrada' })}
+          >
+            Ahora no
+          </button>
+        </div>
+      )}
+      {dijoQueSi && <p className="mt-3">{texto}</p>}
+      {paso.en === 'oferta' && (
+        <CasillaAviso
+          marcada={aviso}
+          enviando={enviando}
+          alCambiar={setAviso}
+          alConfirmar={() => void responder({ respuesta: 'si', aviso })}
+        />
+      )}
+      {paso.en === 'respondida' && (
+        <p role="status" className="mt-3 font-semibold">
+          {paso.pedido.aviso ? (
+            <>
+              Listo: te vamos a avisar por mail cuando abra. Si cambiás de idea, lo sacás desde{' '}
+              <Link to="/mis-datos" className="enlace">
+                Mis datos
+              </Link>
+              .
+            </>
+          ) : (
+            'Gracias por contarnos.'
+          )}
+        </p>
+      )}
+      {error && (
+        <div className="mt-4">
+          <MensajeError mensaje={error} />
+        </div>
+      )}
+    </section>
+  )
+}
+
+interface PropsCasillaAviso {
+  marcada: boolean
+  enviando: boolean
+  alCambiar: (marcada: boolean) => void
+  alConfirmar: () => void
+}
+
+/**
+ * La casilla del aviso con el texto legal vigente, nunca uno inventado: se pide recién acá, después del
+ * "sí". Sin ese texto no se puede confirmar.
+ */
+function CasillaAviso({ marcada, enviando, alCambiar, alConfirmar }: PropsCasillaAviso) {
+  const legales = useCarga(() => api.textosLegales())
+  const textoLegal = legales.datos?.textos?.siguiente_paso?.trim()
+
+  if (legales.cargando) return <Cargando />
+  if (!textoLegal) {
+    return (
+      <div className="mt-4">
+        <MensajeError
+          mensaje="No pudimos cargar el permiso del aviso. Probá de nuevo en un rato."
+          alReintentar={() => void legales.recargar()}
+        />
+      </div>
+    )
+  }
+  return (
+    <>
+      <label className="mt-4 flex gap-3">
+        <input
+          type="checkbox"
+          checked={marcada}
+          disabled={enviando}
+          onChange={(e) => alCambiar(e.target.checked)}
+        />
+        <span>{textoLegal}</span>
+      </label>
+      <button type="button" className="boton boton-sec mt-5 w-full sm:w-auto" disabled={enviando} onClick={alConfirmar}>
+        {enviando ? 'Guardando…' : 'Confirmar'}
+      </button>
+    </>
   )
 }

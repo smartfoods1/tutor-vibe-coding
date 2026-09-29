@@ -65,5 +65,6 @@ spec-kit conservan la licencia MIT de github/spec-kit.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-`specs/001-curso-vibe-coding/plan.md`
+`specs/001-curso-vibe-coding/plan.md` (el curso) and, for the feature in progress,
+`specs/002-siguiente-paso/plan.md`
 <!-- SPECKIT END -->

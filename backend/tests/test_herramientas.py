@@ -136,6 +136,27 @@ def test_guardar_idea_versiona_con_autor_tutor(con, alumno_id, raiz):
     assert vigente["que_sigue_md"] is None
 
 
+def test_guardar_idea_en_el_modulo_2_le_cuenta_al_tutor_lo_que_ve_la_persona(con, alumno_id, raiz):
+    """El resultado de la herramienta le llega al modelo: tiene que describir la pantalla de verdad."""
+    ctx = contexto(con, alumno_id, raiz, 2)
+
+    resultado = ejecutar(con, ctx, "guardar_idea", {"texto_md": IDEA, "que_sigue_md": None})
+
+    for nombre in ("Leer mi idea acá", "Está bien así", "Quiero cambiar algo"):
+        assert nombre in resultado.texto
+    # No la manda a otra pantalla a leer lo que ya tiene en la charla.
+    assert "ya la puede ver" not in resultado.texto
+
+
+def test_guardar_idea_en_el_modulo_3_no_habla_de_botones_que_ahi_no_estan(con, alumno_id, raiz):
+    ctx = contexto(con, alumno_id, raiz, 3)
+
+    resultado = ejecutar(con, ctx, "guardar_idea", {"texto_md": IDEA, "que_sigue_md": None})
+
+    assert "Mi idea" in resultado.texto
+    assert "Está bien así" not in resultado.texto
+
+
 @pytest.mark.parametrize(
     "entrada",
     [

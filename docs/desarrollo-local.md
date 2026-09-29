@@ -125,6 +125,21 @@ ignora), cambiá `VITE_NOMBRE_CURSO` y reiniciá `npm run dev`.
 Los audios de los módulos no se ven en local: en el servidor los sirve nginx desde
 `contenido/audios/`. Si no hay audio para un módulo, el módulo arranca sin él.
 
+Para probar el siguiente paso (la pregunta que llega con el primer link, ver
+[adaptar-el-curso.md](adaptar-el-curso.md), paso 9), sumá esto a `backend/.env.local` y reiniciá el
+backend:
+
+```bash
+SIGUIENTE_PASO=true
+SIGUIENTE_PASO_NOMBRE="el curso de prueba"
+SIGUIENTE_PASO_PREGUNTA="¿Tenés un negocio que ya vende?"
+SIGUIENTE_PASO_TEXTO="En marzo abre un curso para construir el sistema que lo gestiona."
+```
+
+Después bajá el kit en el módulo 3 y registrá un link en "Mostrar": aparece la pregunta. Los
+números quedan en `/admin`. Los casos para recorrer están en
+[specs/002-siguiente-paso/quickstart.md](../specs/002-siguiente-paso/quickstart.md).
+
 ## 4. Probar con el tutor y la voz de verdad
 
 Sacá `MODO_DEMO=true` (o ponelo en `false`) y sumá tus claves a `backend/.env.local`:

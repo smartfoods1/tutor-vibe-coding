@@ -110,6 +110,34 @@ async def test_modulo_2_guarda_la_idea_con_lo_que_escribio_la_persona(tutor, bas
     assert dominio.alumno(base, alumno_id)["modulo_actual"] == 3
 
 
+async def test_modulo_2_nombra_los_botones_de_la_web_al_guardar_la_idea(tutor, base, alumno_id):
+    dominio.completar_modulo(base, alumno_id, 1, "tutor", "Semilla.")
+
+    _, turnos = await _charlar(tutor, alumno_id, 2, [IDEA_QUE, IDEA_QUIEN, IDEA_CHICA])
+
+    texto = _texto(turnos[3])
+    for nombre in ("Leer mi idea acá", "Está bien así", "Quiero cambiar algo"):
+        assert nombre in texto
+
+
+async def test_modulo_2_quiero_cambiar_algo_no_cierra_el_modulo(tutor, base, alumno_id):
+    dominio.completar_modulo(base, alumno_id, 1, "tutor", "Semilla.")
+
+    sesion_id, turnos = await _charlar(
+        tutor, alumno_id, 2, [IDEA_QUE, IDEA_QUIEN, IDEA_CHICA, "Quiero cambiar algo"]
+    )
+
+    # El guion fijo no puede reescribir la idea: lo dice, manda a "Mi idea" y espera a que la persona termine.
+    assert _datos(turnos[4], "avance") == []
+    assert "Mi idea" in _texto(turnos[4])
+    # La web ya sacó los botones al tocar uno y el guion fijo no guarda otra versión: no manda a tocarlos.
+    assert "tocá" not in _texto(turnos[4])
+    assert dominio.alumno(base, alumno_id)["modulo_actual"] == 2
+    # Con "Está bien así" recién ahí se cierra.
+    cierre = await recoger(tutor.turno(sesion_id, alumno_id, "Está bien así"))
+    assert _datos(cierre, "avance") == [{"modulo_completado": 2, "modulo_actual": 3}]
+
+
 async def test_modulo_3_registra_el_taller_cuando_la_persona_elige(tutor, base, alumno_id):
     dominio.completar_modulo(base, alumno_id, 1, "tutor", "Semilla.")
     dominio.guardar_idea(base, alumno_id, "# Recetas", None, "tutor")

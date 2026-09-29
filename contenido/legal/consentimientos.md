@@ -1,5 +1,5 @@
 ---
-version: "2026-09-29"
+version: "2026-09-30"
 titulo: "Tus permisos"
 estado: borrador
 # Borrador para aprobación del autor y revisión de un abogado antes del lanzamiento (research §16).
@@ -11,10 +11,16 @@ estado: borrador
 # {{AUTOR}} y {{NEWSLETTER}} los reemplaza el backend (AUTOR_NOMBRE y NEWSLETTER_NOMBRE).
 # Los bloques de aprobación se muestran solo con APROBACION_MANUAL=true (quien administra aprueba cada
 # inscripción; ver privacidad.md).
+# siguiente_paso es el aviso del siguiente paso (spec 002): no va en la inscripción, sino al registrar
+# la página por primera vez y solo si la persona dice que tiene un negocio que ya vende; es opcional
+# y va desmarcada. {{SIGUIENTE_PASO}} lo reemplaza el backend (SIGUIENTE_PASO_NOMBRE, con su artículo,
+# porque va después de "cuando abra"). Los bloques del siguiente paso se muestran solo con la función
+# activa (SIGUIENTE_PASO=true y sus tres textos).
 # El proveedor del servidor está en Brasil según el registro RIPE de su IP (ver privacidad.md).
 mails_curso: "Acepto recibir los mails del curso: el acceso, un solo recordatorio si me quedo a mitad de camino y uno cuando registre mi página por primera vez. Me puedo dar de baja cuando quiera. Obligatorio para hacer el curso."
 transferencia: "Acepto que mis datos pasen por los proveedores que hacen andar el curso: Anthropic (el tutor), Google (la voz), Resend (los mails) y Cloudflare (el control anti-robots), en Estados Unidos, y Hostinger (el servidor), en Brasil. Esos países no tienen, para la autoridad argentina, una protección de datos adecuada. Obligatorio: sin esto el curso no funciona."
 novedades: "Quiero recibir las novedades que {{AUTOR}} publica en {{NEWSLETTER}}. Mi mail se suma a esa lista, que puede estar fuera de la Argentina. Es opcional y lo puedo cambiar cuando quiera."
+siguiente_paso: "Quiero que {{AUTOR}} me avise por mail cuando abra {{SIGUIENTE_PASO}}. Es opcional y lo puedo sacar cuando quiera desde \"Mis datos\"."
 ---
 
 Para inscribirte te pedimos tus permisos, cada uno por separado. Acá está qué significa cada uno. El detalle completo está en el aviso de privacidad.
@@ -27,7 +33,7 @@ En este curso, quien lo administra aprueba cada inscripción. Cuando verificás 
 {{/APROBACION}}
 ## Mails del curso (obligatorio)
 
-El curso te manda tres mails como mucho: la bienvenida con el acceso{{#APROBACION}} (cuando se aprueba tu pedido){{/APROBACION}}, un solo recordatorio si guardaste tu idea y no seguiste, y uno cuando registres tu página por primera vez. Si después registrás otro link, no te llega otro mail. Son el único contacto del curso con vos, por eso este permiso es obligatorio para inscribirte.
+El curso te manda tres mails como mucho: la bienvenida con el acceso{{#APROBACION}} (cuando se aprueba tu pedido){{/APROBACION}}, un solo recordatorio si guardaste tu idea y no seguiste, y uno cuando registres tu página por primera vez. Si después registrás otro link, no te llega otro mail. Son el único contacto del curso con vos{{#SIGUIENTE_PASO}}, salvo el aviso del siguiente paso si lo pedís (lo explicamos más abajo){{/SIGUIENTE_PASO}}, por eso este permiso es obligatorio para inscribirte.
 
 Cada mail trae un link para darte de baja. La baja no te saca del curso: seguís entrando con tu mail, y los mails con el código para entrar te siguen llegando cada vez que los pedís. Si te arrepentís, desde "Mis datos" te podés volver a dar de alta.
 
@@ -43,6 +49,16 @@ Si más adelante no querés que tus datos sigan pasando por estos proveedores, b
 
 Esto no se elige al inscribirte, sino al registrar tu página. Ahí vas a poder elegir dos cosas, las dos desmarcadas: mostrarla en la galería del curso y que {{AUTOR}} la use en su contenido. La galería muestra el título y el link, sin tu mail ni tu nombre, y tu página aparece recién cuando el curso la revisa y la aprueba. Desde "Mis datos" podés sacarla de la galería, cambiar lo que elegiste sobre el uso de tu página como contenido o borrar el link, cuando quieras.
 
+{{#SIGUIENTE_PASO}}
+## El siguiente paso (opcional, cuando registres tu página)
+
+Esto tampoco se elige al inscribirte. La primera vez que registrás tu página, el curso te hace una sola pregunta: si tenés un negocio que ya vende. Podés contestar que sí o que no, o cerrarla sin contestar, y no te la vuelve a hacer. Tu respuesta se cuenta sin guardar quién contestó: suma a un total de "sí" y otro de "no", y de vos queda solo que ya contestaste, para no preguntarte de nuevo.
+
+Solo si contestás que sí, ves un texto corto sobre {{SIGUIENTE_PASO}} y una casilla, desmarcada, para que {{AUTOR}} te avise cuando abra. Si la marcás, te llega un solo mail del curso cuando abra {{SIGUIENTE_PASO}}. Tu mail no se suma a ninguna otra lista y nunca se exporta: el aviso sale desde el mismo curso. Es un permiso aparte de los mails del curso, así que si te das de baja de esos mails, el aviso sigue hasta que lo saques. Es opcional: si no marcás la casilla, no pasa nada con tu curso.
+
+El aviso lo podés sacar cuando quieras desde "Mis datos", y mientras el curso lo ofrezca también lo podés pedir desde ahí. Si borrás tus datos, el aviso se borra con todo lo demás.
+
+{{/SIGUIENTE_PASO}}
 {{#NEWSLETTER}}
 ## Novedades (opcional)
 

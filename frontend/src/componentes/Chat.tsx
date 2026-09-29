@@ -14,6 +14,7 @@ import {
 import { useConfig } from './Configuracion.tsx'
 import Escuchar from './Escuchar.tsx'
 import { MensajeError, mensajeDe } from './Estados.tsx'
+import IdeaGuardada from './IdeaGuardada.tsx'
 import Microfono from './Microfono.tsx'
 import SubirCaptura from './SubirCaptura.tsx'
 import TextoMd from './TextoMd.tsx'
@@ -49,6 +50,11 @@ interface Props {
   alAvance?: (moduloActual: number) => void
   /** El tutor registró la herramienta y la computadora (registrar_taller, módulo 3). */
   alTaller?: (taller: { herramienta: Herramienta | null; sistema: Sistema | null }) => void
+  /**
+   * Versión de la idea ya guardada al abrir el módulo 2 sin terminarlo. Al retomar la charla, el cuadro
+   * de la idea vuelve a mostrarse (el mensaje del tutor sigue mandando a tocar sus botones).
+   */
+  ideaAlAbrir?: number | null
 }
 
 interface UltimoTurno {
@@ -66,7 +72,7 @@ const aBurbujas = (mensajes: Mensaje[] | undefined): Burbuja[] =>
     .filter((m) => m.texto)
     .map((m) => ({ id: nuevoId(), rol: m.rol, texto: m.texto, completa: true }))
 
-export default function Chat({ modulo, conCaptura = false, alTope, alAvance, alTaller }: Props) {
+export default function Chat({ modulo, conCaptura = false, alTope, alAvance, alTaller, ideaAlAbrir = null }: Props) {
   // En modo demo no hay voz (ni dictado ni Escuchar): el backend no tiene claves para eso.
   const conVoz = !useConfig().modoDemo
   const [sesionId, setSesionId] = useState<number | null>(null)
@@ -87,6 +93,8 @@ export default function Chat({ modulo, conCaptura = false, alTope, alAvance, alT
   const fin = useRef<HTMLDivElement>(null)
   const callbacks = useRef({ alTope, alAvance, alTaller })
   callbacks.current = { alTope, alAvance, alTaller }
+  const ideaInicial = useRef(ideaAlAbrir)
+  ideaInicial.current = ideaAlAbrir
 
   useEffect(() => {
     const creadas = urls.current
@@ -213,6 +221,10 @@ export default function Chat({ modulo, conCaptura = false, alTope, alAvance, alT
         if (visibles.length > 0) {
           seguir.current = visibles.length > 2
           setBurbujas(visibles)
+          // Si el tutor ya guardó la idea y la última palabra fue suya, la persona sigue en el cuadro de la idea.
+          if (modulo === 2 && ideaInicial.current !== null && !pendiente && visibles[visibles.length - 1].rol === 'tutor') {
+            setIdeaGuardada(ideaInicial.current)
+          }
           // Si el último mensaje de la persona quedó sin respuesta (se cortó), se la pide ahora.
           if (pendiente) await mandar(sesion.id, { texto: '' })
           else setEstado('listo')
@@ -247,6 +259,12 @@ export default function Chat({ modulo, conCaptura = false, alTope, alAvance, alT
     if (seguir.current && estado === 'pensando') bajar('smooth')
   }, [estado, bajar])
 
+  // El cuadro de la idea es alto y llega después del texto: se baja hasta él para que sus botones no
+  // queden detrás de la barra de escribir (el "sigo solo si estoy cerca" de abajo no alcanza).
+  useEffect(() => {
+    if (seguir.current && ideaGuardada !== null) bajar('smooth')
+  }, [ideaGuardada, bajar])
+
   useEffect(() => {
     const destino = fin.current
     if (!seguir.current || !destino) return
@@ -280,6 +298,15 @@ export default function Chat({ modulo, conCaptura = false, alTope, alAvance, alT
     setCaptura(null)
     setIdeaGuardada(null)
     void mandar(sesionId, { texto: texto || undefined, imagen })
+  }
+
+  /** Un botón de respuesta rápida (los de la idea guardada): le llega al tutor como si lo hubiera escrito. */
+  function responder(texto: string) {
+    if (sesionId === null || estado !== 'listo') return
+    seguir.current = true
+    setBurbujas((previas) => [...previas, { id: nuevoId(), rol: 'alumno', texto, completa: true }])
+    setIdeaGuardada(null)
+    void mandar(sesionId, { texto })
   }
 
   function alTeclear(evento: KeyboardEvent<HTMLTextAreaElement>) {
@@ -334,14 +361,17 @@ export default function Chat({ modulo, conCaptura = false, alTope, alAvance, alT
             <span className="puntos">{herramienta}</span>
           </p>
         )}
-        {ideaGuardada !== null && (
-          <div className="aviso aviso-logro">
-            <p>Tu idea quedó guardada. Podés leerla, cambiarla y bajarla cuando quieras.</p>
-            <Link to="/mi-idea" className="enlace">
-              Ver mi idea
-            </Link>
-          </div>
-        )}
+        {ideaGuardada !== null &&
+          (modulo === 2 ? (
+            <IdeaGuardada key={ideaGuardada} deshabilitado={ocupado} alElegir={responder} />
+          ) : (
+            <div className="aviso aviso-logro">
+              <p>Tu idea quedó guardada. Podés leerla, cambiarla y bajarla cuando quieras.</p>
+              <Link to="/mi-idea" className="enlace">
+                Ver mi idea
+              </Link>
+            </div>
+          ))}
         {avance && (
           <div className="aviso aviso-logro">
             <p className="font-semibold">Terminaste el módulo {avance.completado}.</p>
@@ -367,6 +397,17 @@ export default function Chat({ modulo, conCaptura = false, alTope, alAvance, alT
           <MensajeError mensaje={falla.mensaje} alReintentar={falla.reintentable ? reintentar : undefined} />
         )}
       </div>
+
+      {/* Al final de la charla y fuera de la barra fija (en el celular ocuparía un tercio de la pantalla).
+          Al terminar el módulo, el aviso de avance ya trae el camino: no se repite. */}
+      {avance === null && (
+        <p className="mt-6 text-[0.9rem] leading-snug text-marron">
+          Podés salir cuando quieras: tu conversación queda guardada.{' '}
+          <Link to="/inicio" className="enlace">
+            Volver al inicio
+          </Link>
+        </p>
+      )}
 
       <form
         onSubmit={enviar}

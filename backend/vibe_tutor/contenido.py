@@ -6,7 +6,9 @@ verificación y si se probaron en la realidad (Constitución IV).
 Los textos pueden llevar {{AUTOR}} y {{NEWSLETTER}}, que dependen de quien opera el curso (AUTOR_NOMBRE
 y NEWSLETTER_NOMBRE en la configuración); `reemplazar_marcadores` los llena al servir o armar cada texto.
 También pueden llevar bloques condicionales: {{#NEWSLETTER}}...{{/NEWSLETTER}} (solo si hay newsletter)
-y {{#APROBACION}}...{{/APROBACION}} (solo con APROBACION_MANUAL).
+y {{#APROBACION}}...{{/APROBACION}} (solo con APROBACION_MANUAL). Los textos legales suman
+{{SIGUIENTE_PASO}} (SIGUIENTE_PASO_NOMBRE) y el bloque {{#SIGUIENTE_PASO}}...{{/SIGUIENTE_PASO}}, que se
+muestra solo con la función del siguiente paso activa (spec 002); el kit y las lecciones no los usan.
 """
 
 import re
@@ -22,6 +24,12 @@ from vibe_tutor.costos import ZONA_ARGENTINA
 ARCHIVO_MACHETE = "machete.yaml"
 AUTOR_POR_DEFECTO = "el autor del curso"
 MARCADORES_DEL_CURSO = frozenset({"AUTOR", "NEWSLETTER"})
+MARCADOR_SIGUIENTE_PASO = "SIGUIENTE_PASO"
+# Sin SIGUIENTE_PASO_NOMBRE, el texto corto del aviso (que "Mis datos" puede mostrar con la función
+# apagada, para sacar un aviso viejo) igual se lee bien.
+SIGUIENTE_PASO_POR_DEFECTO = "el siguiente paso"
+# Los que llena `reemplazar_marcadores`: los del curso más {{SIGUIENTE_PASO}}, que usan los textos legales.
+MARCADORES_DE_LOS_TEXTOS = MARCADORES_DEL_CURSO | {MARCADOR_SIGUIENTE_PASO}
 TEMAS = frozenset({"instalar", "planes", "publicar", "ver", "volver-atras", "limites", "ayuda"})
 HERRAMIENTAS = frozenset({"codex", "claude"})
 SISTEMAS = frozenset({"mac", "windows"})
@@ -188,18 +196,24 @@ def reemplazar(texto: str, valores: Mapping[str, str]) -> str:
 
 
 def reemplazar_marcadores(texto: str, settings: object | None) -> str:
-    """Llena {{AUTOR}} y {{NEWSLETTER}} con la configuración (autor_nombre y newsletter_nombre) y
-    resuelve los bloques {{#NEWSLETTER}} y {{#APROBACION}} (aprobacion_manual).
+    """Llena {{AUTOR}}, {{NEWSLETTER}} y {{SIGUIENTE_PASO}} con la configuración (autor_nombre,
+    newsletter_nombre y siguiente_paso_nombre) y resuelve los bloques {{#NEWSLETTER}}, {{#APROBACION}}
+    (aprobacion_manual) y {{#SIGUIENTE_PASO}} (hay_siguiente_paso).
 
-    Sin configuración (None) usa los valores por defecto y saca los dos tipos de bloque. La usan el
+    Sin configuración (None) usa los valores por defecto y saca los tres tipos de bloque. La usan el
     prompt del tutor, las guías, los textos legales y los mails; el kit suma `valores_del_curso` a
     sus propios marcadores.
     """
     newsletter = getattr(settings, "newsletter_nombre", None)
-    valores = valores_del_curso(getattr(settings, "autor_nombre", None), newsletter)
+    valores = {
+        **valores_del_curso(getattr(settings, "autor_nombre", None), newsletter),
+        MARCADOR_SIGUIENTE_PASO: " ".join((getattr(settings, "siguiente_paso_nombre", None) or "").split())
+        or SIGUIENTE_PASO_POR_DEFECTO,
+    }
     mostrar = {
         "NEWSLETTER": bool((newsletter or "").strip()),
         "APROBACION": bool(getattr(settings, "aprobacion_manual", False)),
+        MARCADOR_SIGUIENTE_PASO: bool(getattr(settings, "hay_siguiente_paso", False)),
     }
     for nombre, patron in _BLOQUES.items():
         texto = _bloques(patron, texto, mostrar[nombre])
@@ -211,7 +225,7 @@ def reemplazar_marcadores(texto: str, settings: object | None) -> str:
 # distintos se pueden anidar: se resuelven de a un nombre por vez.
 _BLOQUES = {
     nombre: re.compile(r"\{\{#" + nombre + r"\}\}(\n?)(.*?)\{\{/" + nombre + r"\}\}(\n?)", re.DOTALL)
-    for nombre in ("NEWSLETTER", "APROBACION")
+    for nombre in ("NEWSLETTER", "APROBACION", MARCADOR_SIGUIENTE_PASO)
 }
 
 

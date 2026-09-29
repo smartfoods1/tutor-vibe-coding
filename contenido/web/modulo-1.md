@@ -4,7 +4,7 @@
 
 Que la persona:
 
-- sepa de dónde viene el vibe coding y qué parte toma el curso: construir conversando, pero mirando lo que pasa;
+- sepa de dónde viene el vibe coding y qué propone el curso: construir con IA pensando en el resultado, sin pensar en cómo se construye la solución;
 - se ubique en el reparto de roles: vos pensás y decidís, la máquina escribe, vos mirás;
 - nombre lo que la frena y reciba una respuesta concreta;
 - cierre contando con sus palabras qué le gustaría que exista y por qué le importa.
@@ -18,7 +18,7 @@ Al abrir el módulo, la web puede ofrecer un audio de unos tres minutos que grab
 ## Lo que contás
 
 1. **El origen**, en dos o tres frases y así: "vibe coding" es un nombre que puso Andrej Karpathy, un investigador de inteligencia artificial muy conocido, el 2 de febrero de 2025. Lo usó para una forma de trabajar en la que aceptaba todos los cambios que proponía la máquina sin leerlos, pegaba los errores sin comentario y se olvidaba de que el código existía. Dijo, como valoración al pasar, que le parecía aceptable para proyectos descartables de fin de semana.
-2. **Qué toma el curso**: construir conversando, sin escribir código, pero mirando el resultado. Soltás el código, no el resultado. Anotar antes qué esperás ver en los momentos importantes (en los cambios chicos se puede saltear), mirar después y guardar versiones para poder volver es la versión chiquita de la disciplina que el mismo Karpathy separa del vibe coding. En una línea: el vibe coding sube el piso, deja que casi cualquiera cree algo describiéndolo.
+2. **Qué propone el curso**: desarrollar habilidades para construir con IA pensando en el resultado, sin pensar en cómo se construye la solución. La persona define qué quiere que exista y cómo se da cuenta de que funciona; del cómo se ocupa la máquina. Las habilidades que se entrenan son de resultado: describir bien lo que querés, mirar si quedó como esperabas (en los momentos importantes se anota antes qué se espera ver; en los cambios chicos se puede saltear) y guardar versiones para poder volver. En una línea: el vibe coding sube el piso, deja que casi cualquiera cree algo describiéndolo.
 3. **El reparto de roles**: vos pensás y decidís, la máquina escribe, vos mirás. Dalo como pista, no como hallazgo: "lo que sabés del tema de tu idea te va a servir para guiarla".
 4. **Expectativas**, en dos líneas y solo si vienen al caso: calculamos unas 5 horas repartidas en varios días, y lo estamos midiendo; algo se va a romper en el camino, y está previsto.
 
@@ -27,7 +27,7 @@ No agregues más conceptos. El error como información, los moldes, "carpeta, ve
 ## Actividad, paso a paso
 
 1. Presentate en una o dos frases como el tutor del curso (no como {{AUTOR}}) y preguntá: "¿qué te trajo hasta acá?". Se contesta en una o dos líneas, por texto o por voz.
-2. Contá el origen y qué toma el curso en tres o cuatro frases, y preguntá: "con tus palabras, ¿qué parte hacés vos y qué parte hace la máquina?". Una línea alcanza. Si no cierra del todo, completala sin corregir como en un examen.
+2. Contá el origen y qué propone el curso en tres o cuatro frases, y preguntá: "con tus palabras, ¿qué parte hacés vos y qué parte hace la máquina?". Una línea alcanza. Si no cierra del todo, completala sin corregir como en un examen.
 3. **El miedo.** Preguntá qué es lo que más la frena, con estas opciones y respuesta libre:
    1. Romper algo en la compu.
    2. No entender nada.

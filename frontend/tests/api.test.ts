@@ -128,6 +128,42 @@ describe('api', () => {
     expect(cuerpoJson(llamadasA(espia, 'PUT /api/consentimientos')[0][1])).toEqual({ novedades: true })
   })
 
+  it('cambiarConsentimientos manda el aviso del siguiente paso como siguiente_paso', async () => {
+    const espia = simularFetch({
+      'PUT /api/consentimientos': json({ mails_curso: true, novedades: false, siguiente_paso: false }),
+    })
+    await api.cambiarConsentimientos({ siguiente_paso: false })
+    expect(cuerpoJson(llamadasA(espia, 'PUT /api/consentimientos')[0][1])).toEqual({ siguiente_paso: false })
+  })
+
+  it('registrarLink devuelve si corresponde la pregunta del siguiente paso', async () => {
+    simularFetch({ 'POST /api/links': json({ id: 7, mail: true, pregunta_siguiente_paso: true }, 201) })
+    const respuesta = await api.registrarLink({
+      url: 'https://mi-idea.netlify.app',
+      titulo: null,
+      mostrar_galeria: false,
+      uso_contenido: false,
+    })
+    expect(respuesta.pregunta_siguiente_paso).toBe(true)
+  })
+
+  it('responderSiguientePaso manda la respuesta y el aviso, y devuelve los permisos', async () => {
+    const permisos = { mails_curso: true, novedades: false, siguiente_paso: true }
+    const espia = simularFetch({ 'POST /api/siguiente-paso': json({ consentimientos: permisos }) })
+    expect(await api.responderSiguientePaso({ respuesta: 'si', aviso: true })).toEqual({ consentimientos: permisos })
+    await api.responderSiguientePaso({ respuesta: 'no', aviso: false })
+    const llamadas = llamadasA(espia, 'POST /api/siguiente-paso')
+    expect(cuerpoJson(llamadas[0][1])).toEqual({ respuesta: 'si', aviso: true })
+    expect(cuerpoJson(llamadas[1][1])).toEqual({ respuesta: 'no', aviso: false })
+  })
+
+  it('responderSiguientePaso levanta el detalle del servidor', async () => {
+    simularFetch({ 'POST /api/siguiente-paso': json({ detalle: 'Ya contestaste esta pregunta.' }, 409) })
+    await expect(api.responderSiguientePaso({ respuesta: 'no', aviso: false })).rejects.toThrow(
+      'Ya contestaste esta pregunta.',
+    )
+  })
+
   it('la lista de novedades se baja de /api/admin/novedades.csv', async () => {
     const espia = simularFetch({
       'GET /api/admin/novedades.csv': new Response('email\n', { headers: { 'Content-Type': 'text/csv' } }),

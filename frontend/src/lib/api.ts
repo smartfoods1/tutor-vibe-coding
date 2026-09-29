@@ -234,8 +234,21 @@ export interface Config {
   modo_demo?: boolean
   /** APROBACION_MANUAL: cada inscripción nueva espera que quien administra la apruebe. */
   aprobacion_manual?: boolean
+  /** SIGUIENTE_PASO con sus tres textos; null si la función no está activa (spec 002). */
+  siguiente_paso?: SiguientePaso | null
 }
 
+/** Los textos del siguiente paso, propios de cada instalación (spec 002). */
+export interface SiguientePaso {
+  /** Cómo se lo nombra en los textos legales. */
+  nombre: string
+  /** La pregunta que se hace después del primer link. */
+  pregunta: string
+  /** Lo que ve solo quien contesta que sí. */
+  texto: string
+}
+
+/** Los permisos de la inscripción (POST /auth/codigo). */
 export interface Consentimientos {
   mails_curso: boolean
   transferencia: boolean
@@ -243,9 +256,22 @@ export interface Consentimientos {
   novedades: boolean
 }
 
+/** Los permisos que la persona cambia desde "Mis datos" (GET /yo y PUT /consentimientos). */
+export interface ConsentimientosAlumno {
+  mails_curso: boolean
+  novedades: boolean
+  /** Opcional: que le avisen por mail cuando abra el siguiente paso. No se pide al inscribirse. */
+  siguiente_paso: boolean
+}
+
+export type CambiosConsentimientos = Partial<ConsentimientosAlumno>
+
+/** Cada permiso con texto corto propio en GET /legal/consentimientos. */
+export type TipoConsentimiento = keyof Consentimientos | 'siguiente_paso'
+
 export interface TextosLegales {
   version: string
-  textos: Partial<Record<keyof Consentimientos, string>>
+  textos: Partial<Record<TipoConsentimiento, string>>
   texto_md: string
 }
 
@@ -280,7 +306,7 @@ export interface Yo {
   idea: { version: number; actualizada: string } | null
   taller: { herramienta: Herramienta | null; sistema: Sistema | null }
   tope: { bloqueado: boolean; alcance: Alcance | null }
-  consentimientos: { mails_curso: boolean; novedades: boolean }
+  consentimientos: ConsentimientosAlumno
   audios: Audio[]
   es_admin?: boolean
 }
@@ -330,6 +356,20 @@ export interface PedidoLink {
   mostrar_galeria: boolean
   uso_contenido: boolean
 }
+
+/** Lo que responde POST /links. */
+export interface LinkRegistrado {
+  id: number
+  mail?: boolean
+  /** Corresponde la pregunta del siguiente paso: función activa, primer link y todavía sin contestar. */
+  pregunta_siguiente_paso: boolean
+}
+
+/**
+ * La respuesta a la pregunta del siguiente paso (POST /siguiente-paso, una sola vez por alumno).
+ * El aviso va solo con "si": con "no" el servidor lo rechaza.
+ */
+export type PedidoSiguientePaso = { respuesta: 'si'; aviso: boolean } | { respuesta: 'no'; aviso: false }
 
 /** Un link propio (GET /links). La galería lo muestra solo con mostrar_galeria y aprobado. */
 export interface LinkPropio {
@@ -544,15 +584,20 @@ export const api = {
     pedir<Record<string, unknown> | null>('/api/taller', { metodo: 'PUT', cuerpo: { herramienta, sistema } }),
   descargarKit: () => descargar('/api/kit', 'mi-proyecto.zip'),
 
-  registrarLink: (pedido: PedidoLink) =>
-    pedir<{ id: number; mail?: boolean }>('/api/links', { metodo: 'POST', cuerpo: pedido }),
+  registrarLink: (pedido: PedidoLink) => pedir<LinkRegistrado>('/api/links', { metodo: 'POST', cuerpo: pedido }),
+  /** La respuesta se cuenta sin guardar quién contestó; el aviso queda como un permiso propio. */
+  responderSiguientePaso: (pedido: PedidoSiguientePaso) =>
+    pedir<{ consentimientos: ConsentimientosAlumno }>('/api/siguiente-paso', {
+      metodo: 'POST',
+      cuerpo: { respuesta: pedido.respuesta, aviso: pedido.aviso },
+    }),
   misLinks: () => pedir<LinkPropio[]>('/api/links'),
   cambiarLink: (id: number, cambios: CambiosLink) =>
     pedir<LinkPropio>(`/api/links/${id}`, { metodo: 'PATCH', cuerpo: cambios }),
   borrarLink: (id: number) => pedir<unknown>(`/api/links/${id}`, { metodo: 'DELETE' }),
   galeria: () => pedir<LinkGaleria[]>('/api/galeria', { publico: true }),
 
-  cambiarConsentimientos: (cambios: Partial<Pick<Consentimientos, 'mails_curso' | 'novedades'>>) =>
+  cambiarConsentimientos: (cambios: CambiosConsentimientos) =>
     pedir<unknown>('/api/consentimientos', { metodo: 'PUT', cuerpo: cambios }),
   descargarMisDatos: () => descargar('/api/mis-datos', 'mis-datos.json'),
   borrarMisDatos: () => pedir<unknown>('/api/mis-datos', { metodo: 'DELETE', cuerpo: { confirmar: 'BORRAR' } }),

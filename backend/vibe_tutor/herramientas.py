@@ -207,10 +207,17 @@ def ejecutar(con: sqlite3.Connection, contexto: Contexto, nombre: str, entrada) 
 
 def _guardar_idea(con, contexto: Contexto, texto_md: str, que_sigue_md: str | None) -> ResultadoHerramienta:
     version = dominio.guardar_idea(con, contexto.alumno_id, texto_md, que_sigue_md, "tutor")
-    return ResultadoHerramienta(
-        f"Idea guardada como versión {version}. El alumno ya la puede ver, editar y descargar en \"Mi idea\".",
-        eventos=(("idea", {"version": version}),),
-    )
+    if contexto.modulo == 2:
+        # Lo que llega acá lo lee el modelo: tiene que describir lo que la persona ve (Chat.tsx, IdeaGuardada.tsx).
+        texto = (
+            f"Idea guardada como versión {version}. La web se la muestra al alumno debajo de la charla: puede "
+            'leerla ahí mismo en "Leer mi idea acá" y tiene dos botones, "Está bien así" y "Quiero cambiar algo". '
+            'También la puede editar y descargar en "Mi idea". No lo mandes a otra pantalla a leerla: pedile '
+            "que la lea ahí y te diga si lo representa."
+        )
+    else:
+        texto = f'Idea guardada como versión {version}. El alumno ya la puede ver, editar y descargar en "Mi idea".'
+    return ResultadoHerramienta(texto, eventos=(("idea", {"version": version}),))
 
 
 def _tiene_dato_personal(texto: str) -> bool:

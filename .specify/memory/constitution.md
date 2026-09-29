@@ -1,20 +1,29 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.2 → 1.0.3 (PATCH, 2026-09-28)
-- Motivo: revisión final antes de publicar el repositorio. Salen detalles que no hacen al curso y
-  que cualquier fork heredaría: notas internas de estrategia de marca, prácticas de operación del
-  autor y el nombre de su proyecto anterior.
-- Principio I: la razón ya no cita notas de estrategia de la cuenta; dice por qué vale el curso
-  (parte de la idea propia de cada persona).
-- Principio III: la regla de los datos de alumnos queda dicha para cualquier instalación: nunca se
-  copian fuera del sistema del curso, salvo la exportación consentida a la lista de novedades.
-- Principio VI: el proyecto anterior del autor ya no se nombra.
-- Restricciones técnicas: salen dos oraciones sobre prácticas de operación del autor, que no son
-  del proyecto; queda que el despliegue no toca ningún otro servicio del servidor.
-- Ninguno cambia la intención de un principio.
+- Version change: 1.0.3 → 1.1.0 (MINOR, 2026-09-28)
+- Motivo: spec 002 (siguiente paso). Andrés aprobó que, al terminar el curso, una instalación pueda
+  ofrecer un siguiente paso.
+- Principio I: "El curso acompaña: no vende, no diagnostica" pasa a "no vende ni diagnostica" y suma
+  que, al terminar, una instalación puede ofrecer un siguiente paso, apagado por defecto, sin precios
+  y con un permiso propio. Amplía el principio.
+- Principio III: sin cambios. La respuesta sobre el negocio se cuenta sin guardar quién contestó
+  (spec 002, FR-012) y la lista de avisos no se exporta.
 - Plantillas: sin cambios.
 
 Historial:
+- Version change: 1.0.2 → 1.0.3 (PATCH, 2026-09-28)
+  Motivo: revisión final antes de publicar el repositorio. Salen detalles que no hacen al curso y
+  que cualquier fork heredaría: notas internas de estrategia de marca, prácticas de operación del
+  autor y el nombre de su proyecto anterior.
+  Principio I: la razón ya no cita notas de estrategia de la cuenta; dice por qué vale el curso
+  (parte de la idea propia de cada persona).
+  Principio III: la regla de los datos de alumnos queda dicha para cualquier instalación: nunca se
+  copian fuera del sistema del curso, salvo la exportación consentida a la lista de novedades.
+  Principio VI: el proyecto anterior del autor ya no se nombra.
+  Restricciones técnicas: salen dos oraciones sobre prácticas de operación del autor, que no son
+  del proyecto; queda que el despliegue no toca ningún otro servicio del servidor.
+  Ninguno cambia la intención de un principio.
+  Plantillas: sin cambios.
 - Version change: 1.0.1 → 1.0.2 (PATCH, 2026-09-28)
   Motivo: el repositorio pasa a ser público (código abierto, un solo commit sin historial) para
   que cualquiera lo forkee y arme su propio curso, y la instalación del autor sigue andando con los
@@ -65,7 +74,9 @@ nombre público lo define cada instalación en su configuración.
 - Todo texto para alumnos va en español rioplatense, con voseo, sin emojis, cercano y claro.
 - El tutor nunca se presenta como Andrés ni imita su voz. La voz real de Andrés aparece solo en
   sus audios grabados.
-- Nada de postura de gurú ni de promesas de negocio. El curso acompaña: no vende, no diagnostica.
+- Nada de postura de gurú ni de promesas de negocio. El curso acompaña: no vende ni diagnostica.
+  Al terminar, una instalación puede ofrecer un siguiente paso, apagado por defecto, sin precios
+  y con un permiso propio.
 - Si un alumno expresa un malestar serio, el tutor responde con cuidado, no diagnostica y deriva a
   ayuda profesional.
 
@@ -152,4 +163,4 @@ Razón: lo que no se prueba se rompe en la cara de un alumno que no sabe qué pa
 - Las enmiendas las aprueba Andrés, se registran en el Sync Impact Report y suben la versión:
   MAJOR si quitan o redefinen un principio, MINOR si agregan uno o lo amplían, PATCH si aclaran.
 
-**Version**: 1.0.3 | **Ratified**: 2026-09-27 | **Last Amended**: 2026-09-28
+**Version**: 1.1.0 | **Ratified**: 2026-09-27 | **Last Amended**: 2026-09-28

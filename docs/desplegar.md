@@ -137,6 +137,14 @@ queda pendiente y no usa el tutor hasta que la aprobás en `/admin`, en "Pedidos
 llega un mail de aviso como mucho una vez por hora. Al aprobar le sale la bienvenida; al rechazar
 se borran sus datos. Los pendientes que nadie aprueba se borran solos a los 90 días.
 
+Si al terminar el curso querés contar que viene algo más (otro curso, por ejemplo), sumá
+`SIGUIENTE_PASO=true` con sus tres textos: `SIGUIENTE_PASO_NOMBRE`, `SIGUIENTE_PASO_PREGUNTA` y
+`SIGUIENTE_PASO_TEXTO`. Viene apagado. Con la función prendida, después del primer link la web
+pregunta si la persona tiene un negocio que ya vende y, si dice que sí, le ofrece un aviso para
+cuando abra; en `/admin` ves cuántos contestaron, cuántos tienen un negocio y cuántos pidieron el
+aviso. Si falta un texto, queda apagada y `/admin` te dice cuál. Qué hace cada clave y cómo cuida
+los datos está en [adaptar-el-curso.md](adaptar-el-curso.md), paso 9.
+
 Cuando cambies este archivo con el servicio andando: `sudo systemctl restart vibe-tutor`.
 
 El nombre del curso no va en el servidor: se toma de `frontend/.env` en tu compu cuando
@@ -165,7 +173,9 @@ El script:
 7. Compara la lista de servicios con la del paso 3.
 8. Hace los chequeos de humo por HTTPS.
 
-Las migraciones de la base corren solas cuando arranca el backend.
+Las migraciones de la base corren solas cuando arranca el backend. Si la versión nueva suma una
+migración (por ejemplo, la 5, del siguiente paso), hacé antes un backup de la base (ver "Backup de
+la base", más abajo).
 
 ## 7. Chequeos de humo
 

@@ -57,7 +57,15 @@ def crear_app() -> FastAPI:
 
     @app.get("/api/config")
     def config(settings: Settings = Depends(get_settings)) -> dict:
-        """Lo que el frontend necesita saber antes de que haya sesión."""
+        """Lo que el frontend necesita saber antes de que haya sesión. `siguiente_paso` trae los tres
+        textos solo con la función activa (SIGUIENTE_PASO y sus textos); si no, es null."""
+        siguiente_paso = None
+        if settings.hay_siguiente_paso:
+            siguiente_paso = {
+                "nombre": settings.siguiente_paso_nombre.strip(),
+                "pregunta": settings.siguiente_paso_pregunta.strip(),
+                "texto": settings.siguiente_paso_texto.strip(),
+            }
         return {
             "turnstile_site_key": settings.turnstile_site_key or None,
             "aviso_prueba": settings.aviso_prueba,
@@ -65,6 +73,7 @@ def crear_app() -> FastAPI:
             "newsletter": settings.newsletter_nombre.strip() or None,
             "modo_demo": settings.modo_demo,
             "aprobacion_manual": settings.aprobacion_manual,
+            "siguiente_paso": siguiente_paso,
         }
 
     for modulo in (auth, voz, api, alumnos, admin, mails):

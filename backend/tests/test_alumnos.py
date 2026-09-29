@@ -46,8 +46,10 @@ def raiz(settings_tmp) -> Path:
         raiz / "legal/consentimientos.md",
         "---\nversion: 2026-10-01\nmails_curso: Acepto recibir los mails del curso.\n"
         "transferencia: Acepto que mis datos se procesen en Estados Unidos.\n"
-        "novedades: Quiero recibir las novedades de {{AUTOR}} por {{NEWSLETTER}}.\nestado: borrador\n---\n\n"
-        "# Consentimientos\n\nDetalle de {{AUTOR}}.\n",
+        "novedades: Quiero recibir las novedades de {{AUTOR}} por {{NEWSLETTER}}.\n"
+        "siguiente_paso: Quiero que {{AUTOR}} me avise cuando abra {{SIGUIENTE_PASO}}.\nestado: borrador\n---\n\n"
+        "# Consentimientos\n\nDetalle de {{AUTOR}}.\n"
+        "{{#SIGUIENTE_PASO}}\n\n## Siguiente paso\n\nTe avisamos cuando abra {{SIGUIENTE_PASO}}.\n{{/SIGUIENTE_PASO}}",
     )
     _escribir(raiz / "machete.yaml", yaml.safe_dump(MACHETE, allow_unicode=True))
     kit = raiz / "kit"
@@ -134,7 +136,7 @@ def test_yo_de_un_alumno_nuevo(cliente):
         "idea": None,
         "taller": {"herramienta": None, "sistema": None},
         "tope": {"bloqueado": False, "alcance": None},
-        "consentimientos": {"mails_curso": True, "novedades": False},
+        "consentimientos": {"mails_curso": True, "novedades": False, "siguiente_paso": False},
         "audios": [],
         "estado": "aprobado",
     }
@@ -650,7 +652,7 @@ def test_registrar_un_link(con_kit, base, mails_enviados):
 
     assert respuesta.status_code == 201
     link_id = respuesta.json()["id"]
-    assert respuesta.json() == {"id": link_id, "mail": True}
+    assert respuesta.json() == {"id": link_id, "mail": True, "pregunta_siguiente_paso": False}
     fila = _fila(base, "SELECT url, titulo, mostrar_galeria, uso_contenido, aprobado FROM links WHERE id = ?", link_id)
     assert tuple(fila) == ("https://mi-idea.netlify.app", "Mi registro de sueños", 0, 0, 0)
     assert _fila(base, "SELECT count(*) FROM eventos WHERE tipo = 'link' AND alumno_id = ?", cliente.alumno_id)[0] == 1
@@ -861,13 +863,15 @@ def test_cambiar_las_novedades(hacer_cliente, raiz, base, con_autor):
     respuesta = cliente.put("/api/consentimientos", json={"novedades": True})
 
     assert respuesta.status_code == 200
-    assert respuesta.json() == {"mails_curso": True, "novedades": True}
+    assert respuesta.json() == {"mails_curso": True, "novedades": True, "siguiente_paso": False}
     fila = _fila(
         base, "SELECT valor, version_texto FROM consentimientos WHERE alumno_id = ? AND tipo = 'novedades' ORDER BY id DESC",
         cliente.alumno_id,
     )
     assert tuple(fila) == (1, "2026-10-01")
-    assert cliente.get("/api/yo").json()["consentimientos"] == {"mails_curso": True, "novedades": True}
+    assert cliente.get("/api/yo").json()["consentimientos"] == {
+        "mails_curso": True, "novedades": True, "siguiente_paso": False
+    }
     assert cliente.put("/api/consentimientos", json={"novedades": False}).json()["novedades"] is False
 
 
@@ -886,7 +890,7 @@ def test_sin_newsletter_igual_se_pueden_rechazar_las_novedades(cliente, base):
     respuesta = cliente.put("/api/consentimientos", json={"novedades": False})
 
     assert respuesta.status_code == 200
-    assert respuesta.json() == {"mails_curso": True, "novedades": False}
+    assert respuesta.json() == {"mails_curso": True, "novedades": False, "siguiente_paso": False}
 
 
 def test_darse_de_baja_y_de_alta_en_los_mails(cliente, base):
@@ -897,9 +901,109 @@ def test_darse_de_baja_y_de_alta_en_los_mails(cliente, base):
     assert dominio.consentimiento(base, cliente.alumno_id, "mails_curso") is True
 
 
-@pytest.mark.parametrize("cuerpo", [{}, {"transferencia": False}, {"novedades": "quizás"}, {"otro_permiso": True}])
+@pytest.mark.parametrize(
+    "cuerpo",
+    [{}, {"transferencia": False}, {"novedades": "quizás"}, {"siguiente_paso": "quizás"}, {"otro_permiso": True}],
+)
 def test_consentimientos_invalidos_da_422(cliente, cuerpo):
     assert cliente.put("/api/consentimientos", json=cuerpo).status_code == 422
+
+
+# --- El aviso del siguiente paso (spec 002) ---
+
+
+@pytest.fixture
+def con_siguiente_paso(settings_tmp):
+    """La configuración de un curso con la función del siguiente paso activa."""
+    return settings_tmp.model_copy(
+        update={
+            "siguiente_paso": True,
+            "siguiente_paso_nombre": "el curso de prueba",
+            "siguiente_paso_pregunta": "¿Tenés un negocio que ya vende?",
+            "siguiente_paso_texto": "En marzo abre un curso para construir el sistema que lo gestiona.",
+        }
+    )
+
+
+def _avisos(base, alumno_id: int) -> list[tuple]:
+    return [
+        tuple(f)
+        for f in base.execute(
+            "SELECT valor, version_texto FROM consentimientos WHERE alumno_id = ? AND tipo = 'siguiente_paso' ORDER BY id",
+            (alumno_id,),
+        )
+    ]
+
+
+def test_pedir_y_sacar_el_aviso_desde_mis_datos(hacer_cliente, raiz, base, con_siguiente_paso):
+    cliente = hacer_cliente([alumnos.router], email=MAIL, settings=con_siguiente_paso)
+
+    respuesta = cliente.put("/api/consentimientos", json={"siguiente_paso": True})
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == {"mails_curso": True, "novedades": False, "siguiente_paso": True}
+    assert cliente.get("/api/yo").json()["consentimientos"]["siguiente_paso"] is True
+    sacar = cliente.put("/api/consentimientos", json={"siguiente_paso": False})
+    assert sacar.status_code == 200
+    assert sacar.json() == {"mails_curso": True, "novedades": False, "siguiente_paso": False}
+    assert _avisos(base, cliente.alumno_id) == [(1, "2026-10-01"), (0, "2026-10-01")]
+    # Pedirlo desde "Mis datos" no cuenta como haber contestado la pregunta.
+    assert _fila(base, "SELECT siguiente_paso_respondido FROM alumnos WHERE id = ?", cliente.alumno_id)[0] == 0
+
+
+@pytest.mark.parametrize("cambios", [{"siguiente_paso": False}, {"siguiente_paso_texto": ""}], ids=["apagada", "sin-texto"])
+def test_con_la_funcion_inactiva_no_se_puede_pedir_el_aviso(hacer_cliente, raiz, base, con_siguiente_paso, cambios):
+    cliente = hacer_cliente([alumnos.router], email=MAIL, settings=con_siguiente_paso.model_copy(update=cambios))
+
+    respuesta = cliente.put("/api/consentimientos", json={"siguiente_paso": True})
+
+    assert respuesta.status_code == 409
+    assert respuesta.json() == {"detalle": alumnos.MENSAJE_SIN_AVISO_SIGUIENTE_PASO}
+    assert _avisos(base, cliente.alumno_id) == []
+    juntos = cliente.put("/api/consentimientos", json={"siguiente_paso": True, "mails_curso": False})
+    assert juntos.status_code == 409
+    assert dominio.consentimiento(base, cliente.alumno_id, "mails_curso") is True
+
+
+def test_con_la_funcion_apagada_el_aviso_se_sigue_viendo_y_se_puede_sacar(hacer_cliente, raiz, base, con_siguiente_paso):
+    activa = hacer_cliente([alumnos.router], email=MAIL, settings=con_siguiente_paso)
+    assert activa.put("/api/consentimientos", json={"siguiente_paso": True}).status_code == 200
+    apagada = hacer_cliente([alumnos.router], email=MAIL)
+
+    assert apagada.get("/api/yo").json()["consentimientos"]["siguiente_paso"] is True
+    respuesta = apagada.put("/api/consentimientos", json={"siguiente_paso": False})
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["siguiente_paso"] is False
+    assert dominio.consentimiento(base, activa.alumno_id, "siguiente_paso") is False
+
+
+def test_mis_datos_trae_el_siguiente_paso(hacer_cliente, raiz, base, con_siguiente_paso, mails_enviados):
+    cliente = hacer_cliente([alumnos.router], email=MAIL, settings=con_siguiente_paso)
+    _en_modulo(base, cliente, 4)
+    assert cliente.post("/api/links", json=LINK).json()["pregunta_siguiente_paso"] is True
+    assert cliente.post("/api/siguiente-paso", json={"respuesta": "si", "aviso": True}).status_code == 200
+    assert cliente.put("/api/consentimientos", json={"siguiente_paso": False}).status_code == 200
+
+    datos = cliente.get("/api/mis-datos").json()
+
+    assert datos["alumno"]["siguiente_paso_respondido"] is True
+    avisos = [c for c in datos["consentimientos"] if c["tipo"] == "siguiente_paso"]
+    assert [(c["valor"], c["version_texto"]) for c in avisos] == [(True, "2026-10-01"), (False, "2026-10-01")]
+    assert all(c["creado"] for c in avisos)
+
+
+def test_borrar_mis_datos_se_lleva_el_aviso_y_deja_los_totales(hacer_cliente, raiz, base, con_siguiente_paso, mails_enviados):
+    cliente = hacer_cliente([alumnos.router], email=MAIL, settings=con_siguiente_paso)
+    _en_modulo(base, cliente, 4)
+    cliente.post("/api/links", json=LINK)
+    assert cliente.post("/api/siguiente-paso", json={"respuesta": "si", "aviso": True}).status_code == 200
+
+    assert cliente.request("DELETE", "/api/mis-datos", json={"confirmar": "BORRAR"}).status_code == 200
+
+    assert _avisos(base, cliente.alumno_id) == []
+    assert dominio.alumno(base, cliente.alumno_id) is None
+    assert [tuple(f) for f in base.execute("SELECT respuesta, total FROM respuestas_siguiente_paso")] == [("si", 1)]
 
 
 # --- Mis datos ---
@@ -959,6 +1063,7 @@ def test_descargar_mis_datos(cliente, base, hacer_cliente):
     assert datos["alumno"]["email"] == MAIL
     assert datos["alumno"]["herramienta"] == "codex"
     assert datos["alumno"]["estado"] == "aprobado"
+    assert datos["alumno"]["siguiente_paso_respondido"] is False
     assert {(c["tipo"], c["valor"]) for c in datos["consentimientos"]} >= {("mails_curso", True), ("transferencia", True)}
     assert datos["avance"][0]["resumen"] == "Quiere un registro de sueños."
     assert [i["texto_md"] for i in datos["ideas"]] == [IDEA]
@@ -1034,7 +1139,16 @@ def test_aviso_de_privacidad(hacer_cliente, raiz):
 
 
 def test_textos_de_consentimiento(hacer_cliente, raiz, con_autor):
-    respuesta = hacer_cliente([alumnos.router], settings=con_autor).get("/api/legal/consentimientos")
+    settings = con_autor.model_copy(
+        update={
+            "siguiente_paso": True,
+            "siguiente_paso_nombre": "el curso de prueba",
+            "siguiente_paso_pregunta": "¿Tenés un negocio que ya vende?",
+            "siguiente_paso_texto": "En marzo abre un curso.",
+        }
+    )
+
+    respuesta = hacer_cliente([alumnos.router], settings=settings).get("/api/legal/consentimientos")
 
     assert respuesta.status_code == 200
     assert respuesta.json() == {
@@ -1043,9 +1157,20 @@ def test_textos_de_consentimiento(hacer_cliente, raiz, con_autor):
             "mails_curso": "Acepto recibir los mails del curso.",
             "transferencia": "Acepto que mis datos se procesen en Estados Unidos.",
             "novedades": "Quiero recibir las novedades de Ana por El boletín de Ana.",
+            "siguiente_paso": "Quiero que Ana me avise cuando abra el curso de prueba.",
         },
-        "texto_md": "# Consentimientos\n\nDetalle de Ana.\n",
+        "texto_md": "# Consentimientos\n\nDetalle de Ana.\n\n## Siguiente paso\n\nTe avisamos cuando abra el curso de prueba.\n",
     }
+
+
+def test_textos_de_consentimiento_sin_el_siguiente_paso_activo(hacer_cliente, raiz, con_autor):
+    datos = hacer_cliente([alumnos.router], settings=con_autor).get("/api/legal/consentimientos").json()
+
+    # La sección del aviso sale solo con la función activa; el texto corto viene siempre, como el de
+    # las novedades, y el frontend muestra la casilla según /config y el permiso del alumno.
+    assert datos["texto_md"] == "# Consentimientos\n\nDetalle de Ana.\n"
+    assert datos["textos"]["siguiente_paso"].startswith("Quiero que Ana me avise")
+    assert "{{" not in datos["textos"]["siguiente_paso"]
 
 
 def test_privacidad_reemplaza_el_autor(hacer_cliente, raiz):

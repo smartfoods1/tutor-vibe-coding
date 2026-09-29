@@ -11,6 +11,15 @@ MAX_FUENTE = 64
 MODULO_KIT = 4
 PENDIENTE = "pendiente"
 APROBADO = "aprobado"
+# El pedido de aviso del siguiente paso: un permiso propio, como los de la inscripción (spec 002).
+AVISO_SIGUIENTE_PASO = "siguiente_paso"
+RESPUESTAS_SIGUIENTE_PASO = ("si", "no")
+MENSAJE_SIGUIENTE_PASO_SIN_LINK = (
+    "Esta pregunta llega cuando registrás el link de tu página, y todavía no registraste ninguno."
+)
+MENSAJE_SIGUIENTE_PASO_YA_CONTESTADO = (
+    "Ya contestaste esta pregunta. El aviso lo podés pedir o sacar desde \"Mis datos\"."
+)
 
 
 class ErrorDominio(ValueError):
@@ -142,3 +151,64 @@ def resumen_modulo(con: sqlite3.Connection, alumno_id: int, modulo: int) -> str 
         "SELECT resumen FROM avance WHERE alumno_id = ? AND modulo = ?", (alumno_id, modulo)
     ).fetchone()
     return fila["resumen"] if fila else None
+
+
+# --- Siguiente paso (spec 002) ---
+
+
+def links_registrados(con: sqlite3.Connection, alumno_id: int) -> int:
+    """Cuántos links registró el alumno en todo el curso: los eventos `link`, que no se borran al
+    borrar un link (así borrar el primero y registrar otro no cuenta como un primer link nuevo)."""
+    fila = con.execute("SELECT count(*) FROM eventos WHERE alumno_id = ? AND tipo = 'link'", (alumno_id,)).fetchone()
+    return int(fila[0])
+
+
+def contesto_siguiente_paso(con: sqlite3.Connection, alumno_id: int) -> bool:
+    """Si el alumno ya contestó la pregunta del siguiente paso. Qué contestó no se guarda."""
+    fila = con.execute("SELECT siguiente_paso_respondido FROM alumnos WHERE id = ?", (alumno_id,)).fetchone()
+    return bool(fila and fila["siguiente_paso_respondido"])
+
+
+def toca_preguntar_siguiente_paso(con: sqlite3.Connection, alumno_id: int) -> bool:
+    """La pregunta sale una sola vez, con el primer link: un solo evento `link` y sin contestar."""
+    return links_registrados(con, alumno_id) == 1 and not contesto_siguiente_paso(con, alumno_id)
+
+
+def contestar_siguiente_paso(
+    con: sqlite3.Connection, alumno_id: int, respuesta: str, aviso: bool, version_texto: str
+) -> None:
+    """Anota que el alumno contestó, suma su respuesta al contador y, si pidió el aviso, lo guarda
+    como permiso con la versión del texto. Todo en una transacción.
+
+    La respuesta ("si" o "no") va a `respuestas_siguiente_paso`, que no tiene alumno ni fecha: del
+    alumno queda solo que contestó (FR-012). Da ErrorDominio si no registró ningún link o si ya
+    contestó, y en ese caso no cambia nada.
+    """
+    with con:
+        con.execute("BEGIN IMMEDIATE")
+        if links_registrados(con, alumno_id) == 0:
+            raise ErrorDominio(MENSAJE_SIGUIENTE_PASO_SIN_LINK)
+        marcados = con.execute(
+            "UPDATE alumnos SET siguiente_paso_respondido = 1 WHERE id = ? AND siguiente_paso_respondido = 0",
+            (alumno_id,),
+        ).rowcount
+        if not marcados:
+            raise ErrorDominio(MENSAJE_SIGUIENTE_PASO_YA_CONTESTADO)
+        con.execute(
+            "INSERT INTO respuestas_siguiente_paso (respuesta, total) VALUES (?, 1)"
+            " ON CONFLICT (respuesta) DO UPDATE SET total = total + 1",
+            (respuesta,),
+        )
+        if aviso:
+            con.execute(
+                "INSERT INTO consentimientos (alumno_id, tipo, valor, version_texto) VALUES (?, ?, 1, ?)",
+                (alumno_id, AVISO_SIGUIENTE_PASO, version_texto),
+            )
+
+
+def respuestas_siguiente_paso(con: sqlite3.Connection) -> dict[str, int]:
+    """Los totales de cada respuesta ("si" y "no"), con 0 si nadie la eligió todavía."""
+    totales = dict.fromkeys(RESPUESTAS_SIGUIENTE_PASO, 0)
+    for fila in con.execute("SELECT respuesta, total FROM respuestas_siguiente_paso"):
+        totales[fila["respuesta"]] = int(fila["total"])
+    return totales

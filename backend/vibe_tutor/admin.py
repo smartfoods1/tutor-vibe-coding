@@ -1,5 +1,6 @@
-"""Reporte para quien opera el curso, exportación de la lista de novedades, moderación de la galería y
-pedidos de acceso con APROBACION_MANUAL (contracts/api.md, sección Admin; research §9)."""
+"""Reporte para quien opera el curso (con los números del siguiente paso, spec 002), exportación de la
+lista de novedades, moderación de la galería y pedidos de acceso con APROBACION_MANUAL (contracts/api.md,
+sección Admin; research §9)."""
 
 import csv
 import io
@@ -134,6 +135,27 @@ def machete(settings: Settings, hoy: date) -> dict:
     }
 
 
+def siguiente_paso(con: sqlite3.Connection, settings: Settings) -> dict:
+    """Los números del siguiente paso (spec 002). Siguen contando con la función apagada: los avisos
+    que ya existen no se pierden. Solo números: la lista de avisos no se muestra ni se exporta (FR-008)."""
+    totales = dominio.respuestas_siguiente_paso(con)
+    avisos = con.execute(
+        """
+        SELECT count(*) FROM alumnos a
+        WHERE (SELECT valor FROM consentimientos
+               WHERE alumno_id = a.id AND tipo = ? ORDER BY id DESC LIMIT 1) = 1
+        """,
+        (dominio.AVISO_SIGUIENTE_PASO,),
+    ).fetchone()[0]
+    return {
+        "activo": settings.hay_siguiente_paso,
+        "falta_configurar": settings.siguiente_paso_faltantes,
+        "contestaron": totales["si"] + totales["no"],
+        "con_negocio": totales["si"],
+        "avisos_activos": int(avisos),
+    }
+
+
 @router.get("/reporte")
 def reporte(
     settings: Settings = Depends(get_settings), con: sqlite3.Connection = Depends(auth.conexion)
@@ -145,6 +167,7 @@ def reporte(
         "gasto": gasto(con, settings, momento),
         "machete": machete(settings, momento.astimezone(costos.ZONA_ARGENTINA).date()),
         "pendientes": dominio.contar_pendientes(con),
+        "siguiente_paso": siguiente_paso(con, settings),
     }
 
 

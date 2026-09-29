@@ -1,11 +1,14 @@
 ---
-version: "2026-09-29"
+version: "2026-09-30"
 titulo: "Aviso de privacidad"
 estado: borrador
 # Borrador para aprobación del autor y revisión de un abogado antes del lanzamiento (research §16).
 # {{AUTOR}} y {{NEWSLETTER}} los reemplaza el backend (AUTOR_NOMBRE y NEWSLETTER_NOMBRE).
 # Los bloques de aprobación se muestran solo con APROBACION_MANUAL=true (quien administra aprueba cada
 # inscripción; los pedidos que nadie aprueba se borran a los 90 días, decisión del autor del 29/9/2026).
+# Los bloques del siguiente paso se muestran solo con la función activa (SIGUIENTE_PASO=true y sus tres
+# textos; spec 002, decisión del autor del 28/9/2026). {{SIGUIENTE_PASO}} lo reemplaza el backend
+# (SIGUIENTE_PASO_NOMBRE, con su artículo, porque va después de "cuando abra").
 # Cubre lo que pide el art. 6 de la Ley 25.326 y la leyenda del art. 3 de la Resolución AAIP 14/2018.
 # Fuentes (consultadas el 2026-09-28):
 # - Ley 25.326, arts. 5, 6, 7, 12, 14 y 16 (texto actualizado en InfoLEG):
@@ -31,6 +34,8 @@ asesoramiento legal: adaptalo a tu país, tu responsable y tus proveedores.
 Las partes marcadas como bloque de newsletter se muestran solo si la instalación tiene
 newsletter (NEWSLETTER_NOMBRE); si no, el backend las saca. Las marcadas como bloque de
 aprobación se muestran solo si quien administra aprueba cada inscripción (APROBACION_MANUAL).
+Las marcadas como bloque del siguiente paso se muestran solo si la instalación ofrece un
+siguiente paso al terminar el curso (SIGUIENTE_PASO).
 -->
 
 Este aviso explica qué datos tuyos guarda el curso, para qué, con quién se comparten, cuánto tiempo se guardan y cómo podés verlos, descargarlos o borrarlos. Leelo antes de inscribirte.
@@ -55,6 +60,9 @@ Los datos del curso forman una base de datos propia del curso.
 - Si lo aceptás, sumarte a la lista de {{NEWSLETTER}} donde {{AUTOR}} publica sus novedades.
 {{/NEWSLETTER}}
 - Si registrás tu página y lo elegís, mostrarla en la galería del curso (recién cuando el curso la revisa y la aprueba) o que {{AUTOR}} la use en su contenido.
+{{#SIGUIENTE_PASO}}
+- Preguntarte, la primera vez que registrás tu página, si tenés un negocio que ya vende: tu respuesta se cuenta sin guardar quién contestó. Si contestás que sí y lo pedís, avisarte con un solo mail cuando abra {{SIGUIENTE_PASO}}; tu mail no se suma a ninguna otra lista ni se exporta.
+{{/SIGUIENTE_PASO}}
 - Saber cómo funciona el curso con números generales (cuántas personas se inscriben, terminan cada módulo, bajan su carpeta y registran un link) y controlar lo que cuesta el tutor.
 - Frenar abusos, como pedidos de códigos en masa.
 
@@ -74,7 +82,7 @@ En este curso, quien lo administra aprueba cada inscripción. Cuando verificás 
 
 - Tu mail.
 - De dónde llegaste al curso, si el link por el que entraste lo indica.
-- Los permisos que diste o sacaste, con su fecha y la versión del texto que aceptaste.
+- Los permisos que diste o sacaste{{#SIGUIENTE_PASO}}, incluido el aviso cuando abra {{SIGUIENTE_PASO}}{{/SIGUIENTE_PASO}}, con su fecha y la versión del texto que aceptaste.
 {{#APROBACION}}
 - Si tu pedido de acceso está pendiente o ya se aprobó.
 {{/APROBACION}}
@@ -83,6 +91,9 @@ En este curso, quien lo administra aprueba cada inscripción. Cuando verificás 
 - Tus conversaciones con el tutor: lo que escribís o dictás y lo que te responde.
 - La herramienta y el tipo de computadora que elegiste, y cada vez que bajaste tu carpeta del curso.
 - Los links que registres, lo que elegiste sobre mostrarlos y si el curso aprobó que aparezcan en la galería.
+{{#SIGUIENTE_PASO}}
+- Si ya contestaste la pregunta sobre tu negocio, para no volver a hacértela. Qué contestaste no se guarda con tus datos: solo suma a un total de "sí" y otro de "no", sin nombres ni fechas.
+{{/SIGUIENTE_PASO}}
 - Qué mails del curso te mandamos.
 - Datos técnicos: lo que cuesta cada respuesta del tutor y la dirección IP desde la que pedís un código, para frenar abusos.
 
@@ -95,12 +106,15 @@ Lo que no guardamos:
 ## Qué es obligatorio y qué pasa si no lo das
 
 - **Tu mail es obligatorio.** Sin mail no te podemos mandar el código para entrar. Si está mal escrito, el código no te llega.
-- **Aceptar los mails del curso es obligatorio para inscribirte.** Son el único contacto del curso con vos. Después te podés dar de baja cuando quieras, sin perder el curso.
+- **Aceptar los mails del curso es obligatorio para inscribirte.** Son el único contacto del curso con vos{{#SIGUIENTE_PASO}}, salvo el aviso del siguiente paso si lo pedís{{/SIGUIENTE_PASO}}. Después te podés dar de baja cuando quieras, sin perder el curso.
 - **Aceptar que tus datos pasen por proveedores fuera de la Argentina es obligatorio.** Sin eso, el tutor, la voz y los mails no funcionan, y no podemos darte el curso. Está explicado más abajo.
 {{#NEWSLETTER}}
 - **Recibir las novedades que publica {{AUTOR}} es opcional.** Si no lo aceptás, no pasa nada con tu curso.
 {{/NEWSLETTER}}
 - **Mostrar tu página en la galería o dejar que {{AUTOR}} la use en su contenido es opcional.** Las dos opciones vienen desmarcadas, y las podés cambiar después desde "Mis datos".
+{{#SIGUIENTE_PASO}}
+- **La pregunta sobre tu negocio y el aviso cuando abra {{SIGUIENTE_PASO}} son opcionales.** La pregunta llega una sola vez, cuando registrás tu página por primera vez, y la podés cerrar sin contestar. La casilla del aviso viene desmarcada, y el aviso lo podés pedir o sacar después desde "Mis datos". Si no contestás o no lo pedís, no pasa nada con tu curso.
+{{/SIGUIENTE_PASO}}
 - **Todo lo que le contás al tutor es voluntario.** Nadie puede obligarte a dar datos sensibles, como los de tu salud. No hace falta que cuentes datos de salud ni datos de otras personas. Si los contás, el tutor no los pone en tu idea ni en los resúmenes, pero quedan en la conversación hasta que se borra (ver los plazos más abajo).
 
 ## Con quién se comparten
@@ -133,6 +147,9 @@ Estados Unidos y Brasil no figuran en la lista de países con un nivel de protec
 
 - **Conversaciones con el tutor:** se borran 30 días después de que terminás el módulo. Las de un módulo que no terminaste, 12 meses después de tu última actividad en el curso. Queda solo el resumen del módulo, sin datos personales ni de salud.
 - **Tu idea, tu avance, tus links y tus permisos:** hasta que los borres.
+{{#SIGUIENTE_PASO}}
+- **El aviso cuando abra {{SIGUIENTE_PASO}} y si ya contestaste la pregunta sobre tu negocio:** hasta que borres tus datos; el aviso lo podés sacar antes desde "Mis datos". Los totales de "sí" y "no" no tienen ningún dato tuyo, así que quedan.
+{{/SIGUIENTE_PASO}}
 {{#APROBACION}}
 - **Pedidos de acceso que no se aprueban:** se borran cuando quien administra el curso los rechaza o, si nadie los aprueba, a los 90 días de la inscripción.
 {{/APROBACION}}
@@ -151,7 +168,7 @@ El curso usa una sola cookie propia, "__Host-vibe_sesion", para mantener tu sesi
 - **Acceso:** desde "Mis datos" podés ver y descargar todos tus datos, cuando quieras y sin costo. La ley te garantiza el acceso gratuito a intervalos no menores a seis meses, salvo que acredites un interés legítimo para pedirlo antes; si lo pedís por el contacto de arriba, la respuesta tiene que llegar dentro de los diez días corridos.
 - **Rectificación:** tu idea la corregís vos desde la web. Si otro dato está mal, pedilo por el contacto de arriba.
 - **Supresión:** desde "Mis datos" podés borrar todos tus datos. Si lo pedís por el contacto de arriba, se hace dentro de los cinco días hábiles.
-- **Sacar un permiso:** te das de baja de los mails con el link que va al pie de cada mail o desde "Mis datos", y ahí mismo podés volver a darte de alta. {{#NEWSLETTER}}El permiso para las novedades lo cambiás desde "Mis datos"; si ya te llegan, date de baja también desde cualquier mail de {{NEWSLETTER}}, porque tu mail ya está en esa lista. {{/NEWSLETTER}}Lo que elegiste al registrar tu página (la galería y el uso como contenido) también lo cambiás desde "Mis datos", donde podés sacar un link de la galería o borrarlo.
+- **Sacar un permiso:** te das de baja de los mails con el link que va al pie de cada mail o desde "Mis datos", y ahí mismo podés volver a darte de alta. {{#NEWSLETTER}}El permiso para las novedades lo cambiás desde "Mis datos"; si ya te llegan, date de baja también desde cualquier mail de {{NEWSLETTER}}, porque tu mail ya está en esa lista. {{/NEWSLETTER}}{{#SIGUIENTE_PASO}}El aviso cuando abra {{SIGUIENTE_PASO}} lo sacás desde "Mis datos", cuando quieras. {{/SIGUIENTE_PASO}}Lo que elegiste al registrar tu página (la galería y el uso como contenido) también lo cambiás desde "Mis datos", donde podés sacar un link de la galería o borrarlo.
 
 LA AGENCIA DE ACCESO A LA INFORMACIÓN PÚBLICA, en su carácter de Órgano de Control de la Ley N° 25.326, tiene la atribución de atender las denuncias y reclamos que interpongan quienes resulten afectados en sus derechos por incumplimiento de las normas vigentes en materia de protección de datos personales.
 

@@ -140,6 +140,9 @@ def test_reporte_vacio(cliente, machete):
     assert datos["gasto"]["mes_usd"] == 0
     assert datos["gasto"]["promedio_por_alumno_usd"] == 0
     assert datos["generado"] == "2026-09-28T15:00:00+00:00"
+    assert datos["siguiente_paso"] == {
+        "activo": False, "falta_configurar": [], "contestaron": 0, "con_negocio": 0, "avisos_activos": 0
+    }
 
 
 def test_gasto_del_mes_contra_el_tope_y_promedio_por_alumno(cliente, base, machete, settings_tmp):
@@ -192,6 +195,81 @@ def test_datos_del_machete_con_mas_de_45_dias(cliente, machete):
             "fuente": "https://example.com/oficial",
         }
     ]
+
+
+# --- siguiente paso (spec 002) ---------------------------------------------------------------------
+
+
+TEXTOS_SIGUIENTE_PASO = {
+    "siguiente_paso_nombre": "el curso de prueba",
+    "siguiente_paso_pregunta": "¿Tenés un negocio que ya vende?",
+    "siguiente_paso_texto": "En marzo abre un curso para construir el sistema que lo gestiona.",
+}
+
+
+def _reporte_siguiente_paso(hacer_cliente, settings) -> dict:
+    respuesta = hacer_cliente([admin.router], email=ADMIN, settings=settings).get("/api/admin/reporte")
+    assert respuesta.status_code == 200
+    return respuesta.json()["siguiente_paso"]
+
+
+def _contesto(con, email: str, respuesta: str, aviso: bool) -> int:
+    alumno_id = dominio.crear_alumno(con, email, fuente=None)
+    dominio.registrar_evento(con, alumno_id, "link")
+    dominio.contestar_siguiente_paso(con, alumno_id, respuesta, aviso, "2026-10-01")
+    return alumno_id
+
+
+def test_el_reporte_cuenta_las_respuestas_y_los_avisos_activos(hacer_cliente, base, settings_tmp):
+    _contesto(base, "ana@example.com", "si", aviso=True)
+    se_arrepintio = _contesto(base, "beto@example.com", "si", aviso=True)
+    dominio.agregar_consentimiento(base, se_arrepintio, "siguiente_paso", False, "2026-10-01")
+    _contesto(base, "carla@example.com", "no", aviso=False)
+    _contesto(base, "sin-aviso@example.com", "si", aviso=False)
+    # Lo pidió desde "Mis datos" sin contestar la pregunta.
+    desde_mis_datos = dominio.crear_alumno(base, "dani@example.com", fuente=None)
+    dominio.agregar_consentimiento(base, desde_mis_datos, "siguiente_paso", True, "2026-10-01")
+    # Borró sus datos: su aviso se va con ella y su respuesta sigue en los totales.
+    borrada = _contesto(base, "eli@example.com", "si", aviso=True)
+    with base:
+        base.execute("DELETE FROM alumnos WHERE id = ?", (borrada,))
+    # Otros permisos no cuentan.
+    novedades = dominio.crear_alumno(base, "fede@example.com", fuente=None)
+    dominio.agregar_consentimiento(base, novedades, "novedades", True, "2026-10-01")
+
+    datos = _reporte_siguiente_paso(hacer_cliente, settings_tmp.model_copy(update={"siguiente_paso": True, **TEXTOS_SIGUIENTE_PASO}))
+
+    assert datos == {"activo": True, "falta_configurar": [], "contestaron": 5, "con_negocio": 4, "avisos_activos": 2}
+
+
+def test_con_la_funcion_apagada_el_reporte_sigue_contando(hacer_cliente, base, settings_tmp):
+    _contesto(base, "ana@example.com", "si", aviso=True)
+    _contesto(base, "beto@example.com", "no", aviso=False)
+
+    datos = _reporte_siguiente_paso(hacer_cliente, settings_tmp)
+
+    assert datos == {"activo": False, "falta_configurar": [], "contestaron": 2, "con_negocio": 1, "avisos_activos": 1}
+
+
+@pytest.mark.parametrize(
+    ("vacios", "faltan"),
+    [
+        (["siguiente_paso_texto"], ["SIGUIENTE_PASO_TEXTO"]),
+        (
+            ["siguiente_paso_nombre", "siguiente_paso_pregunta", "siguiente_paso_texto"],
+            ["SIGUIENTE_PASO_NOMBRE", "SIGUIENTE_PASO_PREGUNTA", "SIGUIENTE_PASO_TEXTO"],
+        ),
+    ],
+)
+def test_el_reporte_avisa_que_faltan_textos(hacer_cliente, settings_tmp, vacios, faltan):
+    settings = settings_tmp.model_copy(
+        update={"siguiente_paso": True, **TEXTOS_SIGUIENTE_PASO, **dict.fromkeys(vacios, "")}
+    )
+
+    datos = _reporte_siguiente_paso(hacer_cliente, settings)
+
+    assert datos["activo"] is False
+    assert datos["falta_configurar"] == faltan
 
 
 def test_reporte_sin_machete_igual_responde(cliente):

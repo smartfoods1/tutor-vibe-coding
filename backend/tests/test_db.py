@@ -9,7 +9,8 @@ from vibe_tutor.main import crear_app
 
 TABLAS = {
     "alumnos": [
-        "id", "email", "creado", "ultima_actividad", "herramienta", "sistema", "modulo_actual", "fuente", "estado"
+        "id", "email", "creado", "ultima_actividad", "herramienta", "sistema", "modulo_actual", "fuente", "estado",
+        "siguiente_paso_respondido",
     ],
     "consentimientos": ["id", "alumno_id", "tipo", "valor", "version_texto", "creado"],
     "codigos": ["id", "email", "hash", "sal", "vence", "intentos", "usado", "ip", "pendiente_json", "creado", "fallos"],
@@ -34,6 +35,8 @@ TABLAS = {
     "links": ["id", "alumno_id", "url", "titulo", "mostrar_galeria", "uso_contenido", "creado", "aprobado"],
     "mails": ["id", "alumno_id", "tipo", "clave", "estado", "creado"],
     "eventos": ["id", "alumno_id", "tipo", "detalle", "creado"],
+    # Sin alumno ni fecha, a propósito: la respuesta sobre el negocio no queda con nadie (spec 002, FR-012).
+    "respuestas_siguiente_paso": ["respuesta", "total"],
 }
 
 
@@ -159,12 +162,21 @@ def test_migracion_3_renombra_el_consentimiento_de_las_novedades(tmp_path):
     con.close()
 
 
-def _base_en_la_version_3(ruta):
-    """Una base como las de las instalaciones anteriores a la migración 4 (sin aprobación manual)."""
+def _base_en_la_version(ruta, version: int):
     con = db.conectar(ruta)
-    for numero, script in enumerate(db.MIGRACIONES[:3], start=1):
+    for numero, script in enumerate(db.MIGRACIONES[:version], start=1):
         con.executescript(f"BEGIN;\n{script}\nPRAGMA user_version = {numero};\nCOMMIT;")
     return con
+
+
+def _base_en_la_version_3(ruta):
+    """Una base como las de las instalaciones anteriores a la migración 4 (sin aprobación manual)."""
+    return _base_en_la_version(ruta, 3)
+
+
+def _base_en_la_version_4(ruta):
+    """Una base como las de las instalaciones anteriores a la migración 5 (sin el siguiente paso)."""
+    return _base_en_la_version(ruta, 4)
 
 
 def _esquema(con):
@@ -174,7 +186,9 @@ def _esquema(con):
     )
 
 
-@pytest.mark.parametrize("vieja", [_base_en_la_version_2_con_el_nombre_anterior, _base_en_la_version_3])
+@pytest.mark.parametrize(
+    "vieja", [_base_en_la_version_2_con_el_nombre_anterior, _base_en_la_version_3, _base_en_la_version_4]
+)
 def test_una_base_nueva_termina_igual_que_una_migrada(tmp_path, vieja):
     nueva = db.conectar(tmp_path / "nueva.db")
     db.migrar(nueva)
@@ -268,6 +282,66 @@ def test_migracion_4_suma_el_estado_y_los_tipos_nuevos_sin_perder_filas(tmp_path
     con.close()
 
 
+def test_migracion_5_suma_el_siguiente_paso_sin_perder_permisos(tmp_path):
+    con = _base_en_la_version_4(tmp_path / "vibe.db")
+    ana = _alumno(con)
+    beto = _alumno(con, "beto@example.com")
+    borrado = _alumno(con, "borrado@example.com")
+    con.executemany(
+        "INSERT INTO consentimientos (alumno_id, tipo, valor, version_texto, creado) VALUES (?, ?, ?, ?, ?)",
+        [
+            (ana, "mails_curso", 1, "2026-09-28", "2026-09-28T10:00:00+00:00"),
+            (ana, "transferencia", 1, "2026-09-28", "2026-09-28T10:00:00+00:00"),
+            (ana, "novedades", 0, "2026-09-28", "2026-09-28T10:00:00+00:00"),
+            (beto, "mails_curso", 1, "2026-09-29", "2026-09-29T11:00:00+00:00"),
+            (ana, "novedades", 1, "2026-09-29", "2026-09-29T12:00:00+00:00"),
+            (borrado, "mails_curso", 1, "2026-09-29", "2026-09-29T13:00:00+00:00"),
+        ],
+    )
+    # Los últimos permisos se van con su alumno: sus ids no se tienen que reusar.
+    con.execute("DELETE FROM alumnos WHERE id = ?", (borrado,))
+    con.commit()
+    antes = [tuple(f) for f in con.execute("SELECT * FROM consentimientos ORDER BY id")]
+    ultimo = con.execute("SELECT seq FROM sqlite_sequence WHERE name = 'consentimientos'").fetchone()[0]
+    assert ultimo > max(f[0] for f in antes)
+
+    db.migrar(con)
+
+    assert con.execute("PRAGMA user_version").fetchone()[0] == len(db.MIGRACIONES) >= 5
+    assert [tuple(f) for f in con.execute("SELECT * FROM consentimientos ORDER BY id")] == antes
+    for tabla, columnas in TABLAS.items():
+        assert _columnas(con, tabla) == columnas, tabla
+    assert _indices(con, "consentimientos")["idx_consentimientos_alumno"] == (False, False, ("alumno_id", "tipo", "id"))
+    assert con.execute("PRAGMA foreign_key_check").fetchall() == []
+    assert con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+    assert [f[0] for f in con.execute("SELECT siguiente_paso_respondido FROM alumnos ORDER BY id")] == [0, 0]
+    assert con.execute("SELECT count(*) FROM respuestas_siguiente_paso").fetchone()[0] == 0
+
+    nuevo_permiso = "INSERT INTO consentimientos (alumno_id, tipo, valor, version_texto) VALUES (?, ?, 1, '2026-09-30')"
+    aviso = con.execute(nuevo_permiso, (beto, "siguiente_paso")).lastrowid
+    assert aviso == ultimo + 1
+    with pytest.raises(sqlite3.IntegrityError):
+        con.execute(nuevo_permiso, (beto, "otro"))
+    con.execute("UPDATE alumnos SET siguiente_paso_respondido = 1 WHERE id = ?", (beto,))
+    with pytest.raises(sqlite3.IntegrityError):
+        con.execute("UPDATE alumnos SET siguiente_paso_respondido = 2 WHERE id = ?", (beto,))
+    con.execute("INSERT INTO respuestas_siguiente_paso (respuesta, total) VALUES ('si', 1)")
+    with pytest.raises(sqlite3.IntegrityError):
+        con.execute("INSERT INTO respuestas_siguiente_paso (respuesta, total) VALUES ('si', 1)")
+
+    con.execute("DELETE FROM alumnos WHERE id = ?", (beto,))
+    assert con.execute("SELECT count(*) FROM consentimientos WHERE alumno_id = ?", (beto,)).fetchone()[0] == 0
+    assert [tuple(f) for f in con.execute("SELECT * FROM respuestas_siguiente_paso")] == [("si", 1)]
+    con.close()
+
+
+def test_las_respuestas_del_siguiente_paso_no_se_atan_a_ningun_alumno(con):
+    assert con.execute("PRAGMA foreign_key_list(respuestas_siguiente_paso)").fetchall() == []
+    con.execute("INSERT INTO respuestas_siguiente_paso (respuesta) VALUES ('no')")
+
+    assert tuple(con.execute("SELECT respuesta, total FROM respuestas_siguiente_paso").fetchone()) == ("no", 0)
+
+
 def test_alumno_nuevo_queda_aprobado_por_defecto(con):
     alumno_id = _alumno(con)
 
@@ -296,6 +370,7 @@ def test_valores_por_defecto(con):
     ).fetchone()
 
     assert alumno["modulo_actual"] == 1
+    assert alumno["siguiente_paso_respondido"] == 0
     assert alumno["herramienta"] is None and alumno["fuente"] is None
     assert datetime.fromisoformat(alumno["creado"]).utcoffset() == timedelta(0)
     assert alumno["ultima_actividad"] == alumno["creado"]
@@ -338,6 +413,10 @@ def test_mensajes_rol_y_orden(con):
         ("mails", "alumno_id, tipo, clave, estado", "1, 'spam', 'k', 'enviado'"),
         ("eventos", "tipo", "'otro'"),
         ("alumnos", "email, estado", "'b@x.com', 'rechazado'"),
+        ("alumnos", "email, siguiente_paso_respondido", "'b@x.com', 2"),
+        ("respuestas_siguiente_paso", "respuesta, total", "'tal vez', 1"),
+        ("respuestas_siguiente_paso", "respuesta, total", "'sí', 1"),
+        ("respuestas_siguiente_paso", "respuesta, total", "'si', -1"),
     ],
 )
 def test_valores_permitidos(con, tabla, columnas, valores):

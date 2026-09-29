@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { api } from '../lib/api.ts'
+import { api, type SiguientePaso } from '../lib/api.ts'
 
 /** Lo que la instalación configura en el backend y la app necesita saber (GET /api/config). */
 export interface DatosConfig {
@@ -13,6 +13,11 @@ export interface DatosConfig {
   modoDemo: boolean
   /** APROBACION_MANUAL: cada inscripción nueva espera que quien administra la apruebe. */
   aprobacionManual: boolean
+  /**
+   * SIGUIENTE_PASO: los tres textos de la instalación para la pregunta después del primer link y el
+   * aviso en "Mis datos". null = función apagada (o incompleta, que cuenta como apagada).
+   */
+  siguientePaso: SiguientePaso | null
 }
 
 export interface ConfigApp extends DatosConfig {
@@ -20,6 +25,16 @@ export interface ConfigApp extends DatosConfig {
 }
 
 const texto = (valor: unknown): string | null => (typeof valor === 'string' && valor.trim() ? valor.trim() : null)
+
+/** Los textos del siguiente paso: si falta cualquiera de los tres, la función queda apagada (FR-001). */
+function leerSiguientePaso(valor: unknown): SiguientePaso | null {
+  if (!valor || typeof valor !== 'object') return null
+  const d = valor as Record<string, unknown>
+  const nombre = texto(d.nombre)
+  const pregunta = texto(d.pregunta)
+  const textoPaso = texto(d.texto)
+  return nombre && pregunta && textoPaso ? { nombre, pregunta, texto: textoPaso } : null
+}
 
 /** Traduce la respuesta de /api/config: lo que falta o no se entiende queda en null o en false. */
 export function leerConfig(datos: unknown): DatosConfig {
@@ -31,6 +46,7 @@ export function leerConfig(datos: unknown): DatosConfig {
     newsletter: texto(d.newsletter),
     modoDemo: d.modo_demo === true,
     aprobacionManual: d.aprobacion_manual === true,
+    siguientePaso: leerSiguientePaso(d.siguiente_paso),
   }
 }
 

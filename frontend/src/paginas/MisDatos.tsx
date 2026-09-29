@@ -3,20 +3,20 @@ import { Link } from 'react-router-dom'
 import { useConfig } from '../componentes/Configuracion.tsx'
 import { Cargando, MensajeError, mensajeDe } from '../componentes/Estados.tsx'
 import Pagina from '../componentes/Pagina.tsx'
-import { api, cuentaPendiente, type CambiosLink, type LinkPropio } from '../lib/api.ts'
+import { api, cuentaPendiente, type CambiosConsentimientos, type CambiosLink, type LinkPropio } from '../lib/api.ts'
 import { textoUsoContenido } from '../lib/marca.ts'
 import { useCarga } from '../lib/useCarga.ts'
 import { esLinkSeguro } from '../lib/validar.ts'
 
-type CambiosConsentimientos = { mails_curso?: boolean; novedades?: boolean }
-
 const PALABRA = 'BORRAR'
 
 export default function MisDatos() {
-  const { newsletter } = useConfig()
+  const { newsletter, siguientePaso } = useConfig()
   const { datos: yo, error, cargando, recargar, poner } = useCarga(() => api.yo())
   const [falla, setFalla] = useState<string | null>(null)
   const [cambiando, setCambiando] = useState(false)
+  // Si saca el aviso con la función apagada, la casilla queda a la vista (sin marcar) en vez de desaparecer.
+  const [avisoSacado, setAvisoSacado] = useState(false)
   const [bajando, setBajando] = useState(false)
   const [confirmacion, setConfirmacion] = useState('')
   const [borrando, setBorrando] = useState(false)
@@ -140,6 +140,18 @@ export default function MisDatos() {
                 alCambiar={(novedades) => void cambiar({ novedades })}
               />
             )}
+            {/* El aviso se ve con la función activa o si ya lo pidió: así siempre lo puede sacar. */}
+            {(siguientePaso || yo.consentimientos.siguiente_paso === true || avisoSacado) && (
+              <CasillaAviso
+                marcada={yo.consentimientos.siguiente_paso === true}
+                sePuedePedir={siguientePaso !== null}
+                ocupada={cambiando}
+                alCambiar={(siguiente_paso) => {
+                  if (!siguiente_paso) setAvisoSacado(true)
+                  void cambiar({ siguiente_paso })
+                }}
+              />
+            )}
           </section>
 
           {/* Una cuenta pendiente no tiene links (ni puede pedirlos): solo ve, baja o borra sus datos. */}
@@ -219,6 +231,49 @@ function CasillaNovedades({ marcada, alCambiar }: { marcada: boolean; alCambiar:
     <label className="mt-5 flex gap-3">
       <input type="checkbox" checked={marcada} onChange={(e) => alCambiar(e.target.checked)} />
       <span>{texto}</span>
+    </label>
+  )
+}
+
+/** El nombre de la casilla cuando el texto legal no carga: solo para que quien tiene el aviso lo saque. */
+const AVISO_SIN_TEXTO = 'Aviso por mail cuando abra el siguiente paso.'
+
+interface PropsCasillaAviso {
+  marcada: boolean
+  /** La función del siguiente paso está activa: solo así se puede pedir el aviso. */
+  sePuedePedir: boolean
+  ocupada: boolean
+  alCambiar: (marcada: boolean) => void
+}
+
+/**
+ * La casilla del aviso del siguiente paso (spec 002). Pedirlo necesita la función activa y el texto
+ * legal vigente; sacarlo se puede siempre, aunque la función se haya apagado o el texto no cargue.
+ */
+function CasillaAviso({ marcada, sePuedePedir, ocupada, alCambiar }: PropsCasillaAviso) {
+  const legales = useCarga(() => api.textosLegales())
+  const texto = legales.datos?.textos?.siguiente_paso?.trim()
+
+  if (legales.cargando) return <Cargando />
+  if (!texto && !marcada && sePuedePedir) {
+    return (
+      <div className="mt-5">
+        <MensajeError
+          mensaje="No pudimos cargar el permiso del aviso. Probá de nuevo en un rato."
+          alReintentar={() => void legales.recargar()}
+        />
+      </div>
+    )
+  }
+  return (
+    <label className="mt-5 flex gap-3">
+      <input
+        type="checkbox"
+        checked={marcada}
+        disabled={ocupada || (!marcada && !sePuedePedir)}
+        onChange={(e) => alCambiar(e.target.checked)}
+      />
+      <span>{texto || AVISO_SIN_TEXTO}</span>
     </label>
   )
 }

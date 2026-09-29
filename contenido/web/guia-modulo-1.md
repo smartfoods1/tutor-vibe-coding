@@ -14,11 +14,11 @@ Si arriba aparece el audio que grabó {{AUTOR}} para este módulo, escuchalo pri
 
 "Vibe coding" es un nombre que puso Andrej Karpathy, un investigador de inteligencia artificial muy conocido, el 2 de febrero de 2025. Lo usó para una forma de trabajar en la que aceptaba todos los cambios que proponía la máquina sin leerlos, pegaba los errores sin comentario y se olvidaba de que el código existía. Dijo, al pasar, que le parecía aceptable para proyectos descartables de fin de semana.
 
-## 3. Qué parte toma este curso
+## 3. Qué te propone este curso
 
-Construir conversando, sin escribir código, pero mirando el resultado. Soltás el código, no el resultado.
+Desarrollar habilidades para construir con IA pensando en el resultado, sin pensar en cómo se construye la solución. Vos definís qué querés que exista y cómo te das cuenta de que funciona. Del cómo se ocupa la máquina.
 
-En los momentos importantes vas a anotar, antes del cambio, qué esperás ver. En los cambios chicos, como un color o un texto, lo podés saltear. Después vas a mirar qué pasó. Y vas a guardar versiones para poder volver atrás. Es una versión chiquita de la disciplina que el propio Karpathy separa del vibe coding.
+Por eso lo que vas a practicar es pensar en el resultado: describir bien lo que querés, mirar si quedó como esperabas y guardar versiones para poder volver atrás. En los momentos importantes vas a anotar, antes del cambio, qué esperás ver. En los cambios chicos, como un color o un texto, lo podés saltear.
 
 El reparto de roles es este: **vos pensás y decidís, la máquina escribe, vos mirás.** Lo que sabés del tema de tu idea te va a servir para guiarla.
 

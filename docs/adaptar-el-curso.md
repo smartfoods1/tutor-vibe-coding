@@ -183,11 +183,50 @@ backend la toma de ahí) y `timeZone` en `frontend/src/paginas/Admin.tsx` y
 `frontend/src/paginas/MiIdea.tsx`, por ejemplo a `America/Mexico_City`. Es de lo poco que se
 cambia en el código.
 
+## 9. Un siguiente paso al terminar (opcional)
+
+Si después del curso vas a abrir algo más (otro curso, un taller), la web se lo puede contar a
+quien termina, sin vender nada en el camino. Viene apagado. Con la función prendida, la primera vez
+que un alumno registra el link de su página la web le pregunta si tiene un negocio que ya vende; si
+dice que sí, ve tu texto y una casilla desmarcada para que le avisen cuando abra. No aparece en el
+kit ni en las lecciones, y no llama al tutor ni a ningún servicio pago.
+
+| Qué | Dónde | Ejemplo |
+|---|---|---|
+| Prenderlo | `SIGUIENTE_PASO` en `/etc/vibe-tutor/.env` | `SIGUIENTE_PASO=true` |
+| Cómo se llama en los textos legales, con su artículo (va después de "cuando abra") | `SIGUIENTE_PASO_NOMBRE` | `SIGUIENTE_PASO_NOMBRE="el curso de sistemas para negocios"` |
+| La pregunta | `SIGUIENTE_PASO_PREGUNTA` | `SIGUIENTE_PASO_PREGUNTA="¿Tenés un negocio que ya vende?"` |
+| El texto que ve quien contesta que sí | `SIGUIENTE_PASO_TEXTO` | `SIGUIENTE_PASO_TEXTO="En marzo abre un curso para construir el sistema que gestiona tu negocio."` |
+
+Hacen falta los cuatro: si falta un texto, la función queda apagada y `/admin` te dice cuál. No
+pongas precios en la pregunta ni en el texto: el curso no vende.
+
+Cómo cuida los datos:
+
+- La respuesta se cuenta sin guardar quién contestó: suma a un total de "sí" y otro de "no". De
+  cada alumno queda solo que ya contestó, para no volver a preguntarle.
+- El aviso es un permiso aparte (`siguiente_paso`), con su fecha y la versión del texto legal que
+  aceptó, como los demás. El alumno lo ve y lo saca desde "Mis datos" (y lo pide ahí mientras la
+  función esté prendida); viaja en la descarga de sus datos y se borra con ellos.
+- La lista de avisos no se exporta. En `/admin` ves solo tres números: cuántos contestaron, cuántos
+  dijeron que tienen un negocio y cuántos tienen el aviso activo. El curso todavía no manda el
+  aviso: eso se construye junto con tu siguiente paso, desde el mismo sistema, nunca exportando la
+  lista.
+
+Si la apagás después de usarla, la pregunta deja de salir; los avisos que ya existen siguen en
+"Mis datos", se pueden sacar y siguen contando en el reporte.
+
+Los textos legales de `contenido/legal/` ya describen el permiso en bloques que se muestran solo
+con la función prendida, y `{{SIGUIENTE_PASO}}` se reemplaza por `SIGUIENTE_PASO_NOMBRE`. Revisalos
+como el resto (paso 2) antes de prenderla.
+
 ## Lista para antes de abrir la inscripción
 
 - [ ] Líneas de ayuda y emergencias de tu país, con fuente y fecha.
 - [ ] Textos legales adaptados y revisados, con versión nueva.
 - [ ] `VITE_NOMBRE_CURSO`, `AUTOR_NOMBRE` y, si corresponde, `NEWSLETTER_NOMBRE`.
+- [ ] Si ofrecés un siguiente paso: `SIGUIENTE_PASO` y sus tres textos, sin precios, con los textos
+  legales revisados.
 - [ ] Colores e íconos propios.
 - [ ] Machete verificado en los últimos 45 días.
 - [ ] Zona horaria, si no estás en Argentina.

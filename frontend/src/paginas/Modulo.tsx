@@ -145,6 +145,7 @@ function VistaModulo({ modulo }: { modulo: number }) {
               <Chat
                 modulo={modulo}
                 conCaptura={modulo === 3}
+                ideaAlAbrir={modulo === 2 && !terminado ? (yo.idea?.version ?? null) : null}
                 alTope={setTope}
                 alAvance={() => {
                   // El chat sigue a la vista: el tutor todavía escribe su cierre.

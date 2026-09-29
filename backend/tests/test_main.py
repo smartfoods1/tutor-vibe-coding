@@ -29,11 +29,43 @@ def test_config_por_defecto(pedir_config):
         "newsletter": None,
         "modo_demo": False,
         "aprobacion_manual": False,
+        "siguiente_paso": None,
     }
 
 
 def test_config_con_aprobacion_manual(pedir_config):
     assert pedir_config(aprobacion_manual=True)["aprobacion_manual"] is True
+
+
+SIGUIENTE_PASO = {
+    "siguiente_paso_nombre": "el curso de prueba",
+    "siguiente_paso_pregunta": "¿Tenés un negocio que ya vende?",
+    "siguiente_paso_texto": "En marzo abre un curso para construir el sistema que lo gestiona.",
+}
+
+
+def test_config_con_el_siguiente_paso_activo_trae_sus_tres_textos(pedir_config):
+    datos = pedir_config(siguiente_paso=True, **SIGUIENTE_PASO)
+
+    assert datos["siguiente_paso"] == {
+        "nombre": "el curso de prueba",
+        "pregunta": "¿Tenés un negocio que ya vende?",
+        "texto": "En marzo abre un curso para construir el sistema que lo gestiona.",
+    }
+
+
+@pytest.mark.parametrize(
+    "cambios",
+    [
+        {**SIGUIENTE_PASO},
+        {"siguiente_paso": True, **SIGUIENTE_PASO, "siguiente_paso_texto": ""},
+        {"siguiente_paso": True, **SIGUIENTE_PASO, "siguiente_paso_nombre": "   "},
+        {"siguiente_paso": True},
+    ],
+    ids=["sin-la-bandera", "sin-texto", "nombre-en-blanco", "sin-textos"],
+)
+def test_config_con_el_siguiente_paso_inactivo_lo_da_como_null(pedir_config, cambios):
+    assert pedir_config(**cambios)["siguiente_paso"] is None
 
 
 def test_config_con_autor_newsletter_y_modo_demo(pedir_config):

@@ -1,6 +1,8 @@
 import json
 import logging
+import re
 from datetime import date
+from pathlib import Path
 
 import pytest
 import yaml
@@ -263,3 +265,15 @@ def test_el_prompt_real_del_repo_queda_sin_marcadores(modulo):
 
     texto = "\n".join(bloque["text"] for bloque in system)
     assert "{{" not in texto
+
+
+def test_la_guia_real_del_modulo_2_nombra_los_botones_de_la_web():
+    """Los botones de la idea guardada le mandan su texto al tutor: la guía tiene que reconocerlo igual."""
+    repo = Path(__file__).resolve().parents[2]
+    web = (repo / "frontend/src/componentes/IdeaGuardada.tsx").read_text(encoding="utf-8")
+    guia = (repo / "contenido/web/modulo-2.md").read_text(encoding="utf-8")
+    for constante in ("RESPUESTA_ESTA_BIEN", "RESPUESTA_QUIERO_CAMBIAR"):
+        encontrado = re.search(rf"{constante} = '([^']+)'", web)
+        assert encontrado, f"no encontré {constante} en IdeaGuardada.tsx"
+        assert f'"{encontrado.group(1)}"' in guia, f"la guía del módulo 2 no nombra {encontrado.group(1)!r}"
+    assert "Leer mi idea acá" in guia

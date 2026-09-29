@@ -1,4 +1,5 @@
-"""Endpoints del alumno (contracts/api.md): estado, guía escrita, idea, taller, kit, links y datos.
+"""Endpoints del alumno (contracts/api.md): estado, guía escrita, idea, taller, kit, links, siguiente
+paso (specs/002-siguiente-paso/contracts/api.md) y datos.
 
 Las sesiones con el tutor viven en api.py y la baja de mails en mails.py. Con APROBACION_MANUAL,
 quien espera aprobación solo llega a /yo, /mis-datos y /consentimientos (con `alumno_actual`); el
@@ -35,8 +36,8 @@ TEMAS_DATOS_DEL_DIA = ("planes", "instalar", "ver", "publicar", "limites")
 CATEGORIAS_PROHIBIDAS = frozenset({"Cc", "Cf"})
 LIMITE_GALERIA = 200
 CONFIRMAR_BORRADO = "BORRAR"
-TIPOS_CONSENTIMIENTO = ("mails_curso", "novedades")
-TEXTOS_CONSENTIMIENTO = ("mails_curso", "transferencia", "novedades")
+TIPOS_CONSENTIMIENTO = ("mails_curso", "novedades", "siguiente_paso")
+TEXTOS_CONSENTIMIENTO = ("mails_curso", "transferencia", "novedades", "siguiente_paso")
 
 MENSAJE_FUERA_DE_LA_WEB = "Ese módulo no está en la web: los módulos 4 a 7 se hacen con el kit."
 MENSAJE_NO_ABIERTO = "Ese módulo todavía no está abierto."
@@ -69,6 +70,9 @@ MENSAJE_BORRAR = f"Para borrar tus datos, escribí {CONFIRMAR_BORRADO} en mayús
 MENSAJE_PRIVACIDAD = "El aviso de privacidad todavía no está publicado. Probá de nuevo más tarde."
 MENSAJE_CONSENTIMIENTOS = "Los textos de los permisos todavía no están publicados. Probá de nuevo más tarde."
 MENSAJE_SIN_NOVEDADES = "Este curso no tiene una lista de novedades por mail, así que no hay nada que aceptar."
+MENSAJE_SIN_SIGUIENTE_PASO = "Este curso no ofrece un siguiente paso por ahora, así que no hay nada que contestar."
+MENSAJE_SIN_AVISO_SIGUIENTE_PASO = "Este curso no ofrece un siguiente paso por ahora, así que no hay aviso que pedir."
+MENSAJE_AVISO_SIN_NEGOCIO = "El aviso del siguiente paso se pide solo si contestás que sí."
 FALTA_IDEA = "Tu idea en una página: la armás en el módulo 2."
 FALTA_HERRAMIENTA = "Elegir tu herramienta: Codex o Claude."
 FALTA_SISTEMA = "Elegir tu computadora: Mac o Windows."
@@ -106,6 +110,12 @@ class CambioLink(BaseModel):
 class CambioConsentimientos(BaseModel):
     novedades: bool | None = None
     mails_curso: bool | None = None
+    siguiente_paso: bool | None = None
+
+
+class RespuestaSiguientePaso(BaseModel):
+    respuesta: Literal["si", "no"]
+    aviso: bool = False
 
 
 class Borrado(BaseModel):
@@ -473,7 +483,11 @@ def registrar_link(
     settings: Settings = Depends(get_settings),
     con: sqlite3.Connection = Depends(conexion),
 ) -> dict:
-    """Registra el link de la página. El mail contame sale una sola vez en la vida del alumno."""
+    """Registra el link de la página. El mail contame sale una sola vez en la vida del alumno.
+
+    `pregunta_siguiente_paso` dice si la web tiene que hacer la pregunta del siguiente paso: solo
+    con la función activa, con el primer link del alumno y si todavía no la contestó.
+    """
     if _fila(con, alumno)["modulo_actual"] < dominio.MODULO_KIT:
         raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_LINK_SIN_KIT)
     url = _url_valida(datos.url)
@@ -488,12 +502,13 @@ def registrar_link(
             (alumno.id, url, titulo, int(datos.mostrar_galeria), int(datos.uso_contenido)),
         ).lastrowid
     dominio.registrar_evento(con, alumno.id, "link")
+    pregunta = settings.hay_siguiente_paso and dominio.toca_preguntar_siguiente_paso(con, alumno.id)
     dominio.subir_modulo(con, alumno.id, MODULO_LINK)
     dominio.tocar_actividad(con, alumno.id)
     mail = mails.contame_pendiente(con, alumno.id)
     if mail:
         tareas.add_task(mails.enviar, settings, alumno.id, "contame", mails.CLAVE_CONTAME, {"link": url, "titulo": titulo})
-    return {"id": link_id, "mail": mail}
+    return {"id": link_id, "mail": mail, "pregunta_siguiente_paso": pregunta}
 
 
 @router.get("/links")
@@ -541,6 +556,31 @@ def galeria(con: sqlite3.Connection = Depends(conexion)) -> list[dict]:
     )
 
 
+# --- Siguiente paso (spec 002) ---
+
+
+@router.post("/siguiente-paso")
+def responder_siguiente_paso(
+    datos: RespuestaSiguientePaso,
+    alumno: Alumno = Depends(alumno_aprobado),
+    settings: Settings = Depends(get_settings),
+    con: sqlite3.Connection = Depends(conexion),
+) -> dict:
+    """La respuesta a la pregunta que llega con el primer link. Se cuenta sin guardar quién contestó
+    (FR-012): del alumno queda solo que ya contestó y, si contestó que sí y lo pidió, el aviso."""
+    if datos.aviso and datos.respuesta != "si":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, MENSAJE_AVISO_SIN_NEGOCIO)
+    if not settings.hay_siguiente_paso:
+        raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_SIN_SIGUIENTE_PASO)
+    version = contenido.version_legal(settings.contenido_dir)
+    try:
+        dominio.contestar_siguiente_paso(con, alumno.id, datos.respuesta, datos.aviso, version)
+    except dominio.ErrorDominio as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
+    dominio.tocar_actividad(con, alumno.id)
+    return {"consentimientos": _consentimientos(con, alumno.id)}
+
+
 # --- Datos del alumno ---
 
 
@@ -556,6 +596,10 @@ def cambiar_consentimientos(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, MENSAJE_SIN_CAMBIOS)
     if cambios.get("novedades") and not settings.hay_newsletter:
         raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_SIN_NOVEDADES)
+    # El aviso del siguiente paso se pide solo con la función activa, pero se saca siempre: así
+    # quien lo pidió lo puede sacar aunque la función se haya apagado después.
+    if cambios.get("siguiente_paso") and not settings.hay_siguiente_paso:
+        raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_SIN_AVISO_SIGUIENTE_PASO)
     version = contenido.version_legal(settings.contenido_dir)
     for tipo, valor in cambios.items():
         antes = dominio.consentimiento(con, alumno.id, tipo)
@@ -573,10 +617,14 @@ def mis_datos(alumno: Alumno = Depends(alumno_actual), con: sqlite3.Connection =
     datos = {
         "exportado": _ahora(),
         "alumno": {
-            campo: fila[campo]
-            for campo in (
-                "email", "creado", "ultima_actividad", "herramienta", "sistema", "modulo_actual", "fuente", "estado"
-            )
+            **{
+                campo: fila[campo]
+                for campo in (
+                    "email", "creado", "ultima_actividad", "herramienta", "sistema", "modulo_actual", "fuente", "estado"
+                )
+            },
+            # Si ya contestó la pregunta del siguiente paso; qué contestó no se guarda (spec 002, FR-012).
+            "siguiente_paso_respondido": bool(fila["siguiente_paso_respondido"]),
         },
         "consentimientos": [
             {**c, "valor": bool(c["valor"])}

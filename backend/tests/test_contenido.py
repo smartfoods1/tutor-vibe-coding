@@ -255,12 +255,13 @@ def _textos_del_repo() -> list[Path]:
 def test_los_textos_del_repo_usan_solo_marcadores_que_el_backend_llena():
     import re
 
+    assert contenido.MARCADORES_DE_LOS_TEXTOS == contenido.MARCADORES_DEL_CURSO | {"SIGUIENTE_PASO"}
     rutas = _textos_del_repo()
     assert rutas
     for ruta in rutas:
         texto = ruta.read_text(encoding="utf-8")
         usados = set(re.findall(r"\{\{([A-Za-z0-9_]+)\}\}", texto))
-        sobrantes = usados - contenido.MARCADORES_DEL_CURSO
+        sobrantes = usados - contenido.MARCADORES_DE_LOS_TEXTOS
         assert not sobrantes, f"{ruta.name}: marcadores sin valor: {sobrantes}"
         assert "{{" not in contenido.reemplazar_marcadores(texto, None), ruta.name
 
@@ -341,6 +342,80 @@ def test_bloques_de_aprobacion_y_de_newsletter_juntos_y_anidados():
     assert contenido.reemplazar_marcadores(texto, _con_aprobacion(False)) == " Fin."
 
 
+# --- Siguiente paso ({{SIGUIENTE_PASO}} y {{#SIGUIENTE_PASO}}...{{/SIGUIENTE_PASO}}, spec 002) ---
+
+
+def _con_siguiente_paso(activo: bool, nombre: str = "el curso de prueba", newsletter_nombre: str = ""):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        autor_nombre="Ana",
+        newsletter_nombre=newsletter_nombre,
+        aprobacion_manual=False,
+        siguiente_paso_nombre=nombre,
+        hay_siguiente_paso=activo,
+    )
+
+
+def test_marcador_del_siguiente_paso_se_llena_con_su_nombre():
+    texto = "{{AUTOR}} te avisa cuando abra {{SIGUIENTE_PASO}}."
+
+    assert contenido.reemplazar_marcadores(texto, _con_siguiente_paso(True)) == (
+        "Ana te avisa cuando abra el curso de prueba."
+    )
+    assert contenido.reemplazar_marcadores(texto, _con_siguiente_paso(False, " el curso   de prueba ")) == (
+        "Ana te avisa cuando abra el curso de prueba."
+    )
+    # Sin nombre queda "el siguiente paso": el texto corto del aviso se muestra en "Mis datos" aunque la
+    # función se apague, para que un aviso viejo se pueda sacar.
+    assert contenido.reemplazar_marcadores(texto, _Conf(autor_nombre="Ana")) == (
+        "Ana te avisa cuando abra el siguiente paso."
+    )
+    assert contenido.reemplazar_marcadores(texto, None) == "el autor del curso te avisa cuando abra el siguiente paso."
+
+
+def test_bloque_del_siguiente_paso_se_muestra_solo_con_la_funcion_activa():
+    texto = "Antes.\n{{#SIGUIENTE_PASO}}\n- {{AUTOR}} te avisa cuando abra {{SIGUIENTE_PASO}}.\n{{/SIGUIENTE_PASO}}\nDespués."
+
+    assert contenido.reemplazar_marcadores(texto, _con_siguiente_paso(True)) == (
+        "Antes.\n- Ana te avisa cuando abra el curso de prueba.\nDespués."
+    )
+    assert contenido.reemplazar_marcadores(texto, _con_siguiente_paso(False)) == "Antes.\nDespués."
+    assert contenido.reemplazar_marcadores(texto, _Conf(autor_nombre="Ana")) == "Antes.\nDespués."
+    assert contenido.reemplazar_marcadores(texto, None) == "Antes.\nDespués."
+
+
+def test_bloque_del_siguiente_paso_en_la_misma_linea_y_junto_a_los_demas():
+    texto = (
+        "Permisos.{{#SIGUIENTE_PASO}} Aviso de lo que sigue.{{#NEWSLETTER}} Y {{NEWSLETTER}}.{{/NEWSLETTER}}"
+        "{{/SIGUIENTE_PASO}}{{#NEWSLETTER}} Novedades.{{/NEWSLETTER}} Fin."
+    )
+
+    assert contenido.reemplazar_marcadores(texto, _con_siguiente_paso(True, newsletter_nombre="Substack")) == (
+        "Permisos. Aviso de lo que sigue. Y Substack. Novedades. Fin."
+    )
+    assert contenido.reemplazar_marcadores(texto, _con_siguiente_paso(True)) == "Permisos. Aviso de lo que sigue. Fin."
+    assert contenido.reemplazar_marcadores(texto, _con_siguiente_paso(False, newsletter_nombre="Substack")) == (
+        "Permisos. Novedades. Fin."
+    )
+    assert contenido.reemplazar_marcadores(texto, _con_siguiente_paso(False)) == "Permisos. Fin."
+
+
+def test_el_siguiente_paso_no_aparece_en_el_kit_ni_en_las_lecciones():
+    """FR-010 del spec 002: de contenido/ solo lo nombran los textos legales; nunca el kit, las
+    lecciones, las guías y el prompt del tutor ni los mails."""
+    rutas = [
+        ruta
+        for carpeta in ("kit", "web", "prompts", "mails")
+        for ruta in sorted((REPO_CONTENIDO / carpeta).rglob("*"))
+        if ruta.is_file() and ruta.suffix in {".md", ".txt", ".html", ".json"}
+    ]
+    assert len(rutas) > 10
+    for ruta in rutas:
+        texto = ruta.read_text(encoding="utf-8")
+        assert "SIGUIENTE_PASO}}" not in texto, ruta
+
+
 @pytest.mark.parametrize("nombre", ["legal/privacidad.md", "legal/consentimientos.md"])
 def test_textos_legales_explican_la_aprobacion_solo_si_esta_activa(nombre):
     raiz = Path(__file__).resolve().parents[2] / "contenido"
@@ -348,7 +423,7 @@ def test_textos_legales_explican_la_aprobacion_solo_si_esta_activa(nombre):
     assert "{{#APROBACION}}" in crudo and "{{/APROBACION}}" in crudo
 
     datos, _ = contenido.separar_frontmatter(crudo)
-    assert str(datos["version"]) == "2026-09-29"
+    assert str(datos["version"]) == "2026-09-30"
     _, con = contenido.separar_frontmatter(contenido.reemplazar_marcadores(crudo, _con_aprobacion(True)))
     _, sin = contenido.separar_frontmatter(contenido.reemplazar_marcadores(crudo, _con_aprobacion(False)))
 
@@ -358,3 +433,63 @@ def test_textos_legales_explican_la_aprobacion_solo_si_esta_activa(nombre):
         assert frase in con, frase
     assert "90 días" not in sin
     assert "pedido de acceso" not in sin.lower()
+
+
+@pytest.mark.parametrize("nombre", ["legal/privacidad.md", "legal/consentimientos.md"])
+def test_textos_legales_explican_el_siguiente_paso_solo_si_esta_activo(nombre):
+    import re
+
+    crudo = contenido.leer(REPO_CONTENIDO, nombre)
+    datos, cuerpo_crudo = contenido.separar_frontmatter(crudo)
+    assert str(datos["version"]) == "2026-09-30"
+    assert "{{#SIGUIENTE_PASO}}" in cuerpo_crudo and "{{/SIGUIENTE_PASO}}" in cuerpo_crudo
+    # Fuera de sus bloques el cuerpo no nombra el siguiente paso: sin la función no quedan huecos.
+    fuera = re.sub(r"\{\{#SIGUIENTE_PASO\}\}.*?\{\{/SIGUIENTE_PASO\}\}", "", cuerpo_crudo, flags=re.DOTALL)
+    assert "SIGUIENTE_PASO}}" not in fuera
+
+    configuraciones = {
+        "activa": _con_siguiente_paso(True, "el curso de prueba", "Substack"),
+        "activa-sin-newsletter": _con_siguiente_paso(True, "el curso de prueba"),
+        "apagada": _con_siguiente_paso(False, "el curso de prueba", "Substack"),
+        "sin-configuracion": None,
+    }
+    cuerpos = {
+        clave: contenido.separar_frontmatter(contenido.reemplazar_marcadores(crudo, config))[1]
+        for clave, config in configuraciones.items()
+    }
+    for clave, cuerpo in cuerpos.items():
+        assert "{{" not in cuerpo and "****" not in cuerpo and "\n\n\n" not in cuerpo, clave
+    for cuerpo in (cuerpos["activa"], cuerpos["activa-sin-newsletter"]):
+        for frase in ("el curso de prueba", "negocio que ya vende", "sin guardar quién contestó", "Mis datos"):
+            assert frase in cuerpo, frase
+    for clave in ("apagada", "sin-configuracion"):
+        assert "el curso de prueba" not in cuerpos[clave], clave
+        assert "negocio que ya vende" not in cuerpos[clave], clave
+
+
+def test_el_texto_corto_del_aviso_del_siguiente_paso():
+    datos, _ = contenido.separar_frontmatter(contenido.leer(REPO_CONTENIDO, "legal/consentimientos.md"))
+
+    assert contenido.reemplazar_marcadores(datos["siguiente_paso"], _con_siguiente_paso(True)) == (
+        'Quiero que Ana me avise por mail cuando abra el curso de prueba. Es opcional y lo puedo sacar cuando '
+        'quiera desde "Mis datos".'
+    )
+
+
+def test_la_seccion_del_aviso_cuenta_lo_que_pide_el_spec():
+    crudo = contenido.leer(REPO_CONTENIDO, "legal/consentimientos.md")
+    _, cuerpo = contenido.separar_frontmatter(contenido.reemplazar_marcadores(crudo, _con_siguiente_paso(True)))
+    seccion = cuerpo.split("## El siguiente paso", 1)[1].split("\n## ", 1)[0]
+
+    for frase in (
+        "registrás tu página",  # se ofrece recién después de registrar la página
+        "negocio que ya vende",  # y solo si dice que tiene uno
+        "sin guardar quién contestó",  # la respuesta se cuenta de forma anónima
+        "un solo mail",  # si marca la casilla, le llega un mail cuando abre
+        "cuando abra el curso de prueba",
+        "ninguna otra lista",  # el mail no va a otra lista
+        "nunca se exporta",
+        '"Mis datos"',  # se saca desde ahí
+        "se borra con",  # y se borra con sus datos
+    ):
+        assert frase in seccion, frase

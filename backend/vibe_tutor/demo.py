@@ -91,9 +91,17 @@ YA_COMPLETO = "Este módulo ya quedó completo. Podés seguir con el siguiente d
 ANTES_DE_GUARDAR = (
     "Con lo que me contaste armé tu idea en una página. La guardo para que la puedas ver, editar y descargar."
 )
+# Los botones de la web mandan estos textos tal cual (frontend/src/componentes/IdeaGuardada.tsx).
+RESPUESTA_ESTA_BIEN = "Está bien así"
+RESPUESTA_QUIERO_CAMBIAR = "Quiero cambiar algo"
 IDEA_GUARDADA = (
-    "Listo, la guardé. Mirala en \"Mi idea\": está armada con tus respuestas tal cual y la podés editar "
-    "como quieras. Cuando la hayas mirado, escribime y cerramos el módulo."
+    'Listo, la guardé. Podés leerla acá abajo, en "Leer mi idea acá": está armada con tus respuestas tal '
+    f'cual. Si te representa, tocá "{RESPUESTA_ESTA_BIEN}" y cerramos el módulo. Si querés cambiar algo, '
+    f'tocá "{RESPUESTA_QUIERO_CAMBIAR}".'
+)
+CAMBIAR_EN_DEMO = (
+    'En el modo demo no puedo reescribir tu idea, pero la podés editar vos en "Mi idea". Cuando la tengas '
+    "como querés, escribime y cerramos el módulo."
 )
 TALLER_REGISTRADO = (
     "Anotado. Ahora instalá la app siguiendo la guía escrita del módulo 3: ahí están los pasos y los datos "
@@ -264,6 +272,8 @@ def _guion_1(estado: SimpleNamespace) -> list[dict]:
 
 def _guion_2(estado: SimpleNamespace) -> list[dict]:
     if "guardar_idea" in estado.exitos:
+        if estado.respuestas and estado.respuestas[-1] == RESPUESTA_QUIERO_CAMBIAR:
+            return [_texto(CAMBIAR_EN_DEMO)]
         return _cerrar(estado)
     n = len(estado.respuestas)
     if n < len(PREGUNTAS[2]):

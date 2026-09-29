@@ -30,6 +30,10 @@ configuración de cada instalación:
 - `{{NEWSLETTER}}`: el nombre del servicio donde el autor publica sus novedades
   (`NEWSLETTER_NOMBRE`). Si está vacío, no hay casilla de novedades y el consentimiento queda en 0;
   si forkeás sin newsletter, sacá las partes de `legal/` que hablan de ella.
+- `{{SIGUIENTE_PASO}}`: solo en `legal/`. Cómo se nombra el siguiente paso que ofrece la instalación
+  (`SIGUIENTE_PASO_NOMBRE`, con su artículo, porque va después de "cuando abra"); si está vacío, queda
+  "el siguiente paso". Las partes entre `{{#SIGUIENTE_PASO}}` y `{{/SIGUIENTE_PASO}}` se muestran solo
+  con la función activa (spec 002). El kit y las lecciones no lo usan.
 - Los demás (`{{AYUDA}}`, `{{URL_CURSO}}`, `{{ENLACE_BAJA}}` y compañía) los llena el backend con
   datos del machete, del alumno o del mail que se arma.
 
