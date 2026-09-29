@@ -12,6 +12,7 @@ const Inicio = lazyConRecarga(() => import('./paginas/Inicio.tsx'))
 const Modulo = lazyConRecarga(() => import('./paginas/Modulo.tsx'))
 const MiIdea = lazyConRecarga(() => import('./paginas/MiIdea.tsx'))
 const Mostrar = lazyConRecarga(() => import('./paginas/Mostrar.tsx'))
+const Seguir = lazyConRecarga(() => import('./paginas/Seguir.tsx'))
 const Galeria = lazyConRecarga(() => import('./paginas/Galeria.tsx'))
 const Privacidad = lazyConRecarga(() => import('./paginas/Privacidad.tsx'))
 const MisDatos = lazyConRecarga(() => import('./paginas/MisDatos.tsx'))
@@ -85,6 +86,7 @@ function Rutas() {
           <Route path="/modulo/:n" element={<Modulo />} />
           <Route path="/mi-idea" element={<MiIdea />} />
           <Route path="/mostrar" element={<Mostrar />} />
+          <Route path="/seguir" element={<Seguir />} />
           <Route path="/galeria" element={<Galeria />} />
           <Route path="/privacidad" element={<Privacidad />} />
           <Route path="/mis-datos" element={<MisDatos />} />

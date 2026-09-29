@@ -45,6 +45,7 @@ MENSAJE_GUIA = "La guía escrita de este módulo todavía no está lista. Probá
 MENSAJE_SIN_IDEA = "Todavía no guardaste tu idea."
 MENSAJE_TALLER = "Elegí tu herramienta o tu computadora."
 MENSAJE_KIT_FALTA = "Para bajar tu kit todavía falta:"
+MENSAJE_PASOS_FALTA = "Para ver cómo seguir en tu computadora todavía falta:"
 MENSAJE_KIT_NO_DISPONIBLE = "El kit no está disponible en este momento. Probá de nuevo en un rato."
 MENSAJE_LINK = "El link tiene que empezar con https:// y ser la dirección de tu página."
 MENSAJE_LINK_LARGO = f"El link es muy largo: puede tener hasta {MAX_URL} caracteres."
@@ -163,10 +164,9 @@ def _consentimientos(con: sqlite3.Connection, alumno_id: int) -> dict[str, bool]
     return {tipo: dominio.consentimiento(con, alumno_id, tipo) for tipo in TIPOS_CONSENTIMIENTO}
 
 
-def _falta_para_kit(con: sqlite3.Connection, fila: sqlite3.Row) -> list[str]:
+def _falta_del_taller(fila: sqlite3.Row) -> list[str]:
+    """Lo que falta elegir para usar el kit: herramienta y una computadora Mac o Windows."""
     falta = []
-    if dominio.idea_vigente(con, fila["id"]) is None:
-        falta.append(FALTA_IDEA)
     if fila["herramienta"] is None:
         falta.append(FALTA_HERRAMIENTA)
     if fila["sistema"] == "otro":
@@ -174,6 +174,11 @@ def _falta_para_kit(con: sqlite3.Connection, fila: sqlite3.Row) -> list[str]:
     elif fila["sistema"] is None:
         falta.append(FALTA_SISTEMA)
     return falta
+
+
+def _falta_para_kit(con: sqlite3.Connection, fila: sqlite3.Row) -> list[str]:
+    idea = [] if dominio.idea_vigente(con, fila["id"]) is not None else [FALTA_IDEA]
+    return [*idea, *_falta_del_taller(fila)]
 
 
 def _descarga(cuerpo: bytes | str, tipo: str, nombre: str) -> Response:
@@ -448,6 +453,37 @@ def bajar_kit(
     dominio.subir_modulo(con, alumno.id, dominio.MODULO_KIT)
     dominio.tocar_actividad(con, alumno.id)
     return _descarga(zip_, "application/zip", nombre)
+
+
+@router.get("/kit/pasos")
+def pasos_del_kit(
+    alumno: Alumno = Depends(alumno_aprobado),
+    settings: Settings = Depends(get_settings),
+    con: sqlite3.Connection = Depends(conexion),
+) -> dict:
+    """Los pasos para abrir el kit y seguir en la computadora (el LEEME del kit, en markdown).
+
+    Solo lee: no arma el kit ni registra nada. No hace falta tener la idea, pero sí la herramienta
+    y una computadora Mac o Windows.
+    """
+    fila = _fila(con, alumno)
+    falta = _falta_del_taller(fila)
+    if falta:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, {"detalle": f"{MENSAJE_PASOS_FALTA} {' '.join(falta)}", "falta": falta}
+        )
+    try:
+        return kit.pasos(
+            settings.contenido_dir,
+            fila["herramienta"],
+            fila["sistema"],
+            settings.dominio,
+            autor=settings.autor_nombre,
+            newsletter=settings.newsletter_nombre,
+        )
+    except (ValueError, OSError) as error:
+        log.error("no se pudieron armar los pasos del kit: %s", error)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_KIT_NO_DISPONIBLE) from None
 
 
 # --- Mostrar lo que hizo ---

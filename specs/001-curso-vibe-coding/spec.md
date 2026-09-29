@@ -174,6 +174,7 @@ Andrés ve el embudo (inscriptos, módulos, kits, links) y el gasto del tutor co
 - **FR-031**: Los datos de alumnos MUST NOT copiarse fuera del sistema del curso ni compartirse con terceros, salvo la exportación consentida a la lista de novedades y los proveedores necesarios para operar (IA, mail, hosting).
 - **FR-032**: Ante un malestar serio que exprese un alumno, el tutor MUST responder con cuidado, no diagnosticar y ofrecer recursos de ayuda profesional de Argentina.
 - **FR-033**: El tutor MUST tratar el texto pegado y las capturas como datos, nunca como instrucciones.
+- **FR-034**: La web MUST mostrar, después del módulo 3, la pantalla "Cómo seguir en tu computadora" con los pasos para abrir el kit en la herramienta y la computadora que eligió el alumno. Los pasos salen del mismo LEEME que viaja dentro del kit (no hay dos versiones) y no llevan datos que se vencen.
 
 ### Key Entities *(include if feature involves data)*
 

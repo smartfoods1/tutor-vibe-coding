@@ -629,6 +629,74 @@ def test_kit_con_la_plantilla_rota_da_503(cliente, base, raiz):
     assert _fila(base, "SELECT count(*) FROM kits")[0] == 0
 
 
+# --- Pasos para abrir el kit (pantalla "Cómo seguir en tu computadora") ---
+
+
+def test_pasos_sin_sesion_da_401(hacer_cliente, raiz):
+    assert hacer_cliente([alumnos.router]).get("/api/kit/pasos").status_code == 401
+
+
+def test_pasos_sin_taller_da_409_con_lo_que_falta(cliente):
+    respuesta = cliente.get("/api/kit/pasos")
+
+    assert respuesta.status_code == 409
+    datos = respuesta.json()
+    assert "computadora" in datos["detalle"]
+    # Para ver los pasos no hace falta tener la idea: solo la herramienta y la computadora.
+    assert len(datos["falta"]) == 2
+    assert not any("idea" in falta for falta in datos["falta"])
+
+
+def test_pasos_con_otro_sistema_da_409(cliente, base):
+    _taller(base, cliente, "codex", "otro")
+
+    respuesta = cliente.get("/api/kit/pasos")
+
+    assert respuesta.status_code == 409
+    assert "Mac o Windows" in respuesta.json()["falta"][0]
+
+
+def test_pasos_con_el_taller_elegido(cliente, base):
+    _taller(base, cliente, "claude", "windows")
+
+    respuesta = cliente.get("/api/kit/pasos")
+
+    assert respuesta.status_code == 200
+    datos = respuesta.json()
+    assert datos["herramienta"] == "claude"
+    assert datos["sistema"] == "windows"
+    # Es el LEEME de la herramienta elegida, el mismo que viaja en el kit.
+    assert datos["texto_md"].strip() == "Abrí la carpeta en Claude."
+
+
+def test_pasos_no_bajan_el_kit_ni_registran_nada(cliente, base):
+    _taller(base, cliente, "codex", "mac")
+    _en_modulo(base, cliente, 3)
+
+    assert cliente.get("/api/kit/pasos").status_code == 200
+
+    assert _fila(base, "SELECT count(*) FROM kits")[0] == 0
+    assert _fila(base, "SELECT modulo_actual FROM alumnos WHERE id = ?", cliente.alumno_id)[0] == 3
+
+
+def test_pasos_llevan_el_autor_de_la_configuracion(hacer_cliente, base, raiz, con_autor, mails_enviados):
+    _escribir(raiz / "kit/LEEME-codex.txt", "Curso de {{AUTOR}}.\n")
+    cliente = hacer_cliente([alumnos.router], email=MAIL, settings=con_autor)
+    _taller(base, cliente, "codex", "mac")
+
+    assert cliente.get("/api/kit/pasos").json()["texto_md"].strip() == "Curso de Ana."
+
+
+def test_pasos_con_la_plantilla_rota_da_503(cliente, base, raiz):
+    _taller(base, cliente, "codex", "mac")
+    (raiz / "kit/LEEME-codex.txt").unlink()
+
+    respuesta = cliente.get("/api/kit/pasos")
+
+    assert respuesta.status_code == 503
+    assert respuesta.json()["detalle"]
+
+
 # --- Links y galería ---
 
 LINK = {"url": "https://mi-idea.netlify.app", "titulo": "Mi registro de sueños"}

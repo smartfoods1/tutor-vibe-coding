@@ -126,6 +126,35 @@ describe('Inicio', () => {
     expect(screen.getByText(/escribí "sigamos" \(o "empecemos" la primera vez\)/i)).toBeInTheDocument()
   })
 
+  it('con el kit recién bajado, el acceso a los pasos para abrirlo es lo principal', async () => {
+    simularFetch({
+      ...CONFIG,
+      'GET /api/yo': yo({ modulo_actual: 4, taller: { herramienta: 'claude', sistema: 'windows' } }),
+    })
+    abrir('/inicio')
+    const pasos = await screen.findByRole('link', { name: /cómo abrir tu kit, paso a paso/i })
+    expect(pasos).toHaveAttribute('href', '/seguir')
+    expect(pasos).not.toHaveClass('boton-sec')
+  })
+
+  it('con la página ya publicada (módulo 7) los pasos siguen a mano, en segundo plano', async () => {
+    simularFetch({
+      ...CONFIG,
+      'GET /api/yo': yo({ modulo_actual: 7, taller: { herramienta: 'codex', sistema: 'mac' } }),
+    })
+    abrir('/inicio')
+    const pasos = await screen.findByRole('link', { name: /cómo abrir tu kit, paso a paso/i })
+    expect(pasos).toHaveAttribute('href', '/seguir')
+    expect(pasos).toHaveClass('boton-sec')
+  })
+
+  it('mientras está en la web (módulos 1 a 3) no ofrece los pasos del kit', async () => {
+    simularFetch({ ...CONFIG, 'GET /api/yo': yo() })
+    abrir('/inicio')
+    await screen.findByRole('link', { name: /seguir con el módulo 2/i })
+    expect(screen.queryByRole('link', { name: /cómo abrir tu kit/i })).toBeNull()
+  })
+
   it('a quien administra le muestra el acceso al reporte', async () => {
     simularFetch({ ...CONFIG, 'GET /api/yo': yo({ es_admin: true }) })
     abrir('/inicio')
@@ -305,6 +334,11 @@ describe('Modulo', () => {
       expect(await screen.findByText('Vamos a instalar Codex.')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: /bajar mi kit/i }))
       expect(await screen.findByText(/listo, bajaste mi-proyecto.zip/i)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /ver cómo seguir en tu computadora/i })).toHaveAttribute('href', '/seguir')
+      // Mismo lugar fijo que dicen el módulo 3 y el LEEME: Proyectos, y ni Documentos, ni Descargas, ni el escritorio.
+      expect(screen.getByText(/una carpeta llamada proyectos, dentro de tu carpeta personal/i)).toBeInTheDocument()
+      expect(screen.getByText(/ni en documentos, ni en descargas, ni en el escritorio/i)).toBeInTheDocument()
+      expect(screen.getByText(/los mismos pasos están en la pantalla que sigue/i)).toBeInTheDocument()
       await waitFor(() => expect(llamadasA(espia, 'GET /api/yo')).toHaveLength(2))
       await act(() => new Promise((listo) => setTimeout(listo, 30)))
 

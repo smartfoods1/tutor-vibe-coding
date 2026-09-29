@@ -611,3 +611,143 @@ def test_agents_real_trae_la_ayuda_del_machete_real(herramienta, sistema):
     assert "no lo anotes en ningún archivo" in agents.lower()
     assert len(agents.encode("utf-8")) < 8 * 1024
     assert len(agents.splitlines()) < 200
+
+
+# --- Los pasos para abrir el kit, en la web (pantalla "Cómo seguir en tu computadora") ---
+
+LEEME_DE_PRUEBA = """TU CARPETA DEL CURSO: {{TITULO}}
+
+Kit armado el {{FECHA}}, para {{HERRAMIENTA}} en una computadora con {{SISTEMA}}.
+
+
+ANTES DE EMPEZAR
+
+1. Guardá esta carpeta en un lugar fijo.
+   - En Mac: abrí el Finder.
+2. No borres nada de lo que hay adentro.
+
+
+CÓMO ABRIRLA EN CLAUDE
+
+Abrí la app.
+
+
+LA PRIMERA VEZ
+
+1. Para comprobar que la app anda escribí: hola, probando
+   La app tiene que contestar que anda.
+2. Para arrancar, escribí: empecemos
+
+Cuando la app vuelva a contestar, escribí: sigamos
+"""
+
+
+def test_leeme_a_markdown_pone_los_titulos_en_minuscula_con_los_nombres_propios():
+    texto = kit.leeme_a_markdown(LEEME_DE_PRUEBA)
+
+    assert "## Antes de empezar" in texto
+    assert "## Cómo abrirla en Claude" in texto
+    assert "## La primera vez" in texto
+    assert "ANTES DE EMPEZAR" not in texto
+
+
+def test_leeme_a_markdown_saca_la_primera_linea_con_el_titulo_de_la_idea():
+    texto = kit.leeme_a_markdown(LEEME_DE_PRUEBA)
+
+    assert "TU CARPETA DEL CURSO" not in texto
+    assert texto.lstrip().startswith("Kit armado el {{FECHA}}")
+
+
+def test_leeme_a_markdown_marca_lo_que_hay_que_escribir():
+    texto = kit.leeme_a_markdown(LEEME_DE_PRUEBA)
+
+    assert "escribí: `hola, probando`" in texto
+    assert "escribí: `empecemos`" in texto
+    assert "escribí: `sigamos`" in texto
+
+
+def test_leeme_a_markdown_no_toca_las_listas_ni_el_resto():
+    texto = kit.leeme_a_markdown(LEEME_DE_PRUEBA)
+
+    assert "1. Guardá esta carpeta en un lugar fijo.\n   - En Mac: abrí el Finder.\n2. No borres nada" in texto
+    assert "La app tiene que contestar que anda." in texto
+
+
+def test_leeme_a_markdown_no_toma_una_frase_en_mayusculas_dentro_de_un_parrafo_por_titulo():
+    texto = kit.leeme_a_markdown("Intro.\n\nEsto NO es un título\nNI ESTO tampoco, porque sigue texto\n")
+
+    assert "##" not in texto
+
+
+def test_pasos_no_dice_cuando_se_armo_el_kit(raiz):
+    (raiz / "kit/LEEME-codex.txt").write_text(
+        "TU CARPETA: {{TITULO}}\n\nKit armado el {{FECHA}}, para {{HERRAMIENTA}} en una computadora con {{SISTEMA}}.\n",
+        encoding="utf-8",
+    )
+
+    texto = kit.pasos(raiz, "codex", "mac", DOMINIO, hoy=HOY)["texto_md"]
+
+    assert texto.strip() == "Los pasos para Codex en una computadora con Mac."
+
+
+def test_pasos_de_la_herramienta_y_la_computadora_elegidas(raiz):
+    pasos = kit.pasos(raiz, "claude", "windows", DOMINIO, hoy=HOY)
+
+    assert pasos["herramienta"] == "claude"
+    assert pasos["sistema"] == "windows"
+    assert set(pasos) == {"herramienta", "sistema", "texto_md"}
+    assert "{{" not in pasos["texto_md"]
+
+
+@pytest.mark.parametrize(("herramienta", "sistema"), [("codex", "mac"), ("codex", "windows"), ("claude", "mac"), ("claude", "windows")])
+def test_pasos_con_la_plantilla_real_del_repo(herramienta, sistema):
+    pasos = kit.pasos(REPO_CONTENIDO, herramienta, sistema, DOMINIO, hoy=HOY)
+    texto = pasos["texto_md"]
+
+    nombre = kit.HERRAMIENTAS[herramienta]
+    assert "{{" not in texto
+    assert f"## Cómo abrirla en {nombre}" in texto
+    for titulo in ("## Antes de empezar", "## La primera vez", "## Cómo seguir otro día", "## Permisos", "## Nunca"):
+        assert titulo in texto, titulo
+    assert "`empecemos`" in texto and "`sigamos`" in texto
+    assert kit.SISTEMAS[sistema] in texto
+    # "Kit armado el <fecha>" es del zip: en la web, esa fecha sería la de hoy y no la de la descarga.
+    assert "Kit armado" not in texto
+    assert texto.lstrip().startswith(f"Los pasos para {nombre}")
+    # Es el mismo texto que el LEEME.txt del kit: lo que se dice de la otra herramienta no aparece.
+    otra = kit.HERRAMIENTAS["codex" if herramienta == "claude" else "claude"]
+    assert f"Cómo abrirla en {otra}" not in texto
+
+
+def test_pasos_sale_del_mismo_archivo_que_el_leeme_del_kit(raiz):
+    """Un solo texto: si se cambia el LEEME de la plantilla, cambian el kit y la pantalla."""
+    (raiz / "kit/LEEME-codex.txt").write_text(
+        "TU CARPETA: {{TITULO}}\n\nUNA FRASE ÚNICA DE PRUEBA para {{HERRAMIENTA}}.\n", encoding="utf-8"
+    )
+
+    en_el_kit = _texto(_archivos(_armar(raiz)[0]), "LEEME.txt")
+    en_la_web = kit.pasos(raiz, "codex", "mac", DOMINIO, hoy=HOY)["texto_md"]
+
+    assert "UNA FRASE ÚNICA DE PRUEBA para Codex." in en_el_kit
+    assert "UNA FRASE ÚNICA DE PRUEBA para Codex." in en_la_web
+
+
+@pytest.mark.parametrize(("herramienta", "sistema"), [("cursor", "mac"), ("codex", "linux"), ("codex", "otro")])
+def test_pasos_con_herramienta_o_sistema_invalidos(raiz, herramienta, sistema):
+    with pytest.raises(kit.ErrorKit):
+        kit.pasos(raiz, herramienta, sistema, DOMINIO, hoy=HOY)
+
+
+def test_pasos_sin_el_leeme_de_la_herramienta_avisa(raiz):
+    (raiz / "kit/LEEME-codex.txt").unlink()
+
+    with pytest.raises(contenido.ErrorContenido):
+        kit.pasos(raiz, "codex", "mac", DOMINIO, hoy=HOY)
+
+
+def test_pasos_llena_el_autor_del_curso(raiz):
+    (raiz / "kit/LEEME-codex.txt").write_text("TU CARPETA: {{TITULO}}\n\nHola {{AUTOR}}.\n", encoding="utf-8")
+
+    pasos = kit.pasos(raiz, "codex", "mac", DOMINIO, hoy=HOY, autor="Ana")
+
+    assert "Hola Ana." in pasos["texto_md"]

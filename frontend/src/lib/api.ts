@@ -345,6 +345,13 @@ export interface Idea {
   creado: string
 }
 
+/** Los pasos para abrir el kit y seguir en la computadora (GET /api/kit/pasos): el LEEME del kit, en markdown. */
+export interface PasosKit {
+  herramienta: Herramienta
+  sistema: Sistema
+  texto_md: string
+}
+
 export interface LinkGaleria {
   titulo: string | null
   url: string
@@ -583,6 +590,7 @@ export const api = {
   elegirTaller: (herramienta: Herramienta, sistema: Sistema) =>
     pedir<Record<string, unknown> | null>('/api/taller', { metodo: 'PUT', cuerpo: { herramienta, sistema } }),
   descargarKit: () => descargar('/api/kit', 'mi-proyecto.zip'),
+  pasosDelKit: () => pedir<PasosKit>('/api/kit/pasos'),
 
   registrarLink: (pedido: PedidoLink) => pedir<LinkRegistrado>('/api/links', { metodo: 'POST', cuerpo: pedido }),
   /** La respuesta se cuenta sin guardar quién contestó; el aviso queda como un permiso propio. */

@@ -72,7 +72,11 @@ export default function Inicio() {
                 ? 'Registraste tu link. Si la cambiás, publicala de nuevo en el mismo link.'
                 : `Abrí la carpeta de tu kit en ${herramienta} y escribí "sigamos" (o "empecemos" la primera vez). El tutor sabe dónde quedaste.`}
             </p>
-            <Link to="/mostrar" className="boton mt-5 w-full">
+            {/* Mientras construye (módulo 4), abrir el kit es lo primero; con la página publicada, los pasos quedan a mano. */}
+            <Link to="/seguir" className={`boton mt-5 w-full ${actual === 4 ? '' : 'boton-sec'}`}>
+              Cómo abrir tu kit, paso a paso
+            </Link>
+            <Link to="/mostrar" className={`boton mt-3 w-full ${actual === 4 ? 'boton-sec' : ''}`}>
               {actual >= 7 ? 'Registrar otro link' : 'Ya publiqué: registrar mi link'}
             </Link>
             <p className="mt-4">

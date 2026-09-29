@@ -162,6 +162,22 @@ def _reemplazar(texto: str, marcadores: dict[str, str], es_html: bool) -> str:
     return texto
 
 
+def _marcadores(
+    titulo: str, dominio: str, herramienta: str, sistema: str, hoy: date, autor: str | None, newsletter: str | None
+) -> dict[str, str]:
+    """Los valores de los marcadores {{...}} de los textos del kit (los mismos en el zip y en la web)."""
+    url_curso = url_del_curso(dominio)
+    return {
+        "TITULO": titulo,
+        "URL_CURSO": url_curso,
+        "URL_AUDIOS": f"{url_curso}/audios",
+        "HERRAMIENTA": HERRAMIENTAS[herramienta],
+        "SISTEMA": SISTEMAS[sistema],
+        "FECHA": hoy.isoformat(),
+        **contenido.valores_del_curso(autor, newsletter),
+    }
+
+
 def _version_curso(raiz: Path) -> str:
     try:
         texto = contenido.leer(raiz, ARCHIVO_VERSION)
@@ -255,16 +271,7 @@ def armar(
     fecha_machete = contenido.fecha_mas_vieja(datos).isoformat()
     version_curso = _version_curso(raiz)
     titulo = titulo_de(idea_md)
-    url_curso = url_del_curso(dominio)
-    marcadores = {
-        "TITULO": titulo,
-        "URL_CURSO": url_curso,
-        "URL_AUDIOS": f"{url_curso}/audios",
-        "HERRAMIENTA": HERRAMIENTAS[herramienta],
-        "SISTEMA": SISTEMAS[sistema],
-        "FECHA": hoy.isoformat(),
-        **contenido.valores_del_curso(autor, newsletter),
-    }
+    marcadores = _marcadores(titulo, dominio, herramienta, sistema, hoy, autor, newsletter)
     if MARCADOR_AYUDA.encode() in plantilla["AGENTS.md"]:
         marcadores["AYUDA"] = _ayuda(datos)
     archivos: dict[str, bytes] = {}
@@ -279,6 +286,76 @@ def armar(
     carpeta = f"mi-proyecto-{slug(titulo)}"
     metadatos = {"version_curso": version_curso, "fecha_machete": fecha_machete}
     return _zip(carpeta, archivos, hoy), f"{carpeta}.zip", metadatos
+
+
+# Un título del LEEME.txt es una línea toda en mayúsculas, con líneas en blanco antes y después.
+_TITULO_LEEME = re.compile(r"^[A-ZÁÉÍÓÚÜÑ][A-ZÁÉÍÓÚÜÑ0-9 ,.:;()/¿?¡!-]*[A-ZÁÉÍÓÚÜÑ0-9?!]$")
+_LO_QUE_SE_ESCRIBE = re.compile(r"(?m)^(.*\bescribí: )([^`\n]*[^`\s.])[ \t]*$")
+# "Kit armado el <fecha>, para ..." habla del zip: en la web esa fecha sería la de hoy, no la de la descarga.
+_KIT_ARMADO = re.compile(r"(?m)^Kit armado el \{\{FECHA\}\}, para ")
+_NOMBRES_PROPIOS = re.compile(r"\b(" + "|".join(nombre.lower() for nombre in HERRAMIENTAS.values()) + r")\b")
+
+
+def _titulo_de_seccion(linea: str) -> str:
+    minuscula = linea.lower()
+    minuscula = minuscula[:1].upper() + minuscula[1:]
+    return _NOMBRES_PROPIOS.sub(lambda m: m.group(1).capitalize(), minuscula)
+
+
+def leeme_a_markdown(texto: str) -> str:
+    """El LEEME.txt del kit como markdown para la web: mismos pasos, mismas palabras.
+
+    Los títulos en mayúsculas pasan a "## Título"; se saca la primera línea (lleva el título de la idea,
+    y la página ya tiene el suyo); y lo que hay que escribir en la herramienta ("escribí: sigamos") va
+    entre comillas de código, para que se vea qué palabras tipear. El resto queda tal cual: las listas
+    y las líneas cortadas del .txt ya son markdown válido. Los marcadores {{...}} se llenan después.
+    """
+    lineas = texto.splitlines()
+    if lineas and "{{TITULO}}" in lineas[0]:
+        lineas = lineas[1:]
+    salida: list[str] = []
+    for indice, linea in enumerate(lineas):
+        antes = indice == 0 or not lineas[indice - 1].strip()
+        despues = indice == len(lineas) - 1 or not lineas[indice + 1].strip()
+        if antes and despues and _TITULO_LEEME.match(linea.strip()):
+            salida.append(f"## {_titulo_de_seccion(linea.strip())}")
+        else:
+            salida.append(linea)
+    return _LO_QUE_SE_ESCRIBE.sub(r"\1`\2`", "\n".join(salida).strip() + "\n")
+
+
+def pasos(
+    contenido_dir: Path,
+    herramienta: str,
+    sistema: str,
+    dominio: str,
+    hoy: date | None = None,
+    *,
+    autor: str | None = None,
+    newsletter: str | None = None,
+) -> dict[str, str]:
+    """Los pasos para abrir el kit y seguir en la computadora, para la pantalla "Cómo seguir".
+
+    Salen del LEEME de la herramienta elegida (contenido/kit/LEEME-<herramienta>.txt): el mismo texto
+    que viaja dentro del kit, así no hay dos versiones que se desincronicen.
+    """
+    if herramienta not in HERRAMIENTAS:
+        raise ErrorKit(f"herramienta desconocida: {herramienta}")
+    if sistema not in SISTEMAS:
+        raise ErrorKit(f"el kit es para Mac o Windows, no para {sistema}")
+    hoy = hoy or hoy_argentina()
+    ruta = Path(contenido_dir) / CARPETA_PLANTILLA / f"LEEME-{herramienta}.txt"
+    try:
+        plantilla = ruta.read_text(encoding="utf-8")
+    except OSError as error:
+        raise contenido.ErrorContenido(f"no se pudo leer el LEEME del kit ({ruta.name}): {error}") from error
+    marcadores = _marcadores(TITULO_POR_DEFECTO, dominio, herramienta, sistema, hoy, autor, newsletter)
+    texto = _KIT_ARMADO.sub("Los pasos para ", leeme_a_markdown(plantilla))
+    return {
+        "herramienta": herramienta,
+        "sistema": sistema,
+        "texto_md": _reemplazar(texto, marcadores, es_html=False),
+    }
 
 
 def main(argv: list[str] | None = None) -> int:

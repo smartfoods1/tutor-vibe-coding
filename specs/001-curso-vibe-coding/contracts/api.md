@@ -199,6 +199,16 @@ Requiere idea guardada y taller elegido con `mac` o `windows`; si falta algo: `4
 Registra la descarga en `kits`, el evento `kit` y sube `modulo_actual` a 4 si estaba en 3.
 Contenido del zip: ver [kit.md](kit.md).
 
+### `GET /kit/pasos` (sesión)
+
+Los pasos para abrir el kit y seguir en la computadora, para la pantalla "Cómo seguir en tu computadora"
+(FR-034): `200 {"herramienta": "claude" | "codex", "sistema": "mac" | "windows", "texto_md": "..."}`.
+`texto_md` es el `LEEME-<herramienta>.txt` de la plantilla del kit pasado a markdown (`kit.pasos`): los
+títulos en mayúsculas pasan a `##`, lo que hay que escribir en la herramienta va entre comillas de
+código y "Kit armado el <fecha>" pasa a "Los pasos para". Solo lee: no arma el kit ni registra nada, y no
+pide la idea. Sin herramienta o sin computadora Mac o Windows: `409` con qué falta. Con la plantilla rota:
+`503`.
+
 ## Mostrar lo que hizo (FR-022, FR-023)
 
 ### `POST /links` (sesión)

@@ -244,6 +244,7 @@ controlan sus datos.
 - [ ] T093 Plan de difusión del lanzamiento (fuera del repo)
 - [ ] T094 Programar el chequeo de la regla de los 30 días con el reporte del admin y anotar su resultado fechado en `specs/001-curso-vibe-coding/piloto.md` y en las notas del autor
 - [ ] T095 Publicar el repo como código abierto (`tutor-vibe-coding`, un solo commit sin historial): lo propio del autor pasa a configuración que no se versiona (`AUTOR_NOMBRE`, `NEWSLETTER_NOMBRE`, `MODO_DEMO`, `VITE_NOMBRE_CURSO`, `deploy/despliegue.env`); `contenido/` usa los marcadores `{{AUTOR}}` y `{{NEWSLETTER}}`; el consentimiento pasa a `novedades` (migración 3) y el CSV a `/api/admin/novedades.csv`; `/api/config` suma `autor_nombre`, `newsletter` y `modo_demo`; licencias MIT (código), CC BY 4.0 (contenido y diseño) y CC0 (kit y ejemplos); el material privado de los audios queda en las notas del autor. Constitución 1.0.3
+- [X] T096 Pantalla "Cómo seguir en tu computadora" (FR-034): `GET /api/kit/pasos` (`kit.pasos` y `kit.leeme_a_markdown`, mismo LEEME que el zip), página `/seguir` (`frontend/src/paginas/Seguir.tsx`) y enlaces desde el aviso del módulo 3, el kit recién bajado y el inicio. Tests en `backend/tests/test_kit.py`, `test_alumnos.py` y `frontend/tests/seguir.test.tsx`
 
 ---
 

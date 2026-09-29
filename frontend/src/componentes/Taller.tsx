@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { api, type Herramienta, type Sistema, type Yo } from '../lib/api.ts'
 import { MensajeError, mensajeDe } from './Estados.tsx'
 
@@ -181,10 +182,17 @@ export default function Taller({ yo, alCambiar }: Props) {
             <div role="status" className="aviso aviso-logro mt-4 space-y-2">
               <p className="font-semibold">Listo, bajaste {kit.nombre}.</p>
               <p>
-                Descomprimilo (en Windows: clic derecho y "Extraer todo") y guardá la carpeta en un lugar fijo, que no
-                sea Descargas ni el escritorio.
+                Descomprimilo (en Windows: clic derecho y "Extraer todo") y guardá la carpeta en un lugar fijo: una
+                carpeta llamada Proyectos, dentro de tu carpeta personal. Ni en Documentos, ni en Descargas, ni en el
+                escritorio.
               </p>
-              <p>Adentro hay un archivo LEEME.txt con los pasos para abrirla en {nombreHerramienta}.</p>
+              <p>
+                Adentro hay un archivo LEEME.txt con los pasos para abrirla en {nombreHerramienta}. Los mismos pasos están
+                en la pantalla que sigue.
+              </p>
+              <Link to="/seguir" className="boton mt-2 w-full">
+                Ver cómo seguir en tu computadora
+              </Link>
             </div>
           )}
         </div>

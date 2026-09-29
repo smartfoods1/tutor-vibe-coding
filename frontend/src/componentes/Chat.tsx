@@ -386,6 +386,10 @@ export default function Chat({ modulo, conCaptura = false, alTope, alAvance, alT
               <Link to={`/modulo/${siguiente}`} className="boton mt-3 w-full">
                 Seguir con el módulo {siguiente}
               </Link>
+            ) : modulo === 3 ? (
+              <Link to="/seguir" className="boton mt-3 w-full">
+                Cómo seguir en tu computadora
+              </Link>
             ) : (
               <Link to="/inicio" className="boton mt-3 w-full">
                 Volver al inicio

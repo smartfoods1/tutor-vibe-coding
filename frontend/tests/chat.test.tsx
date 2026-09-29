@@ -325,6 +325,36 @@ describe('Chat', () => {
     expect(screen.queryByRole('link', { name: /volver al inicio/i })).toBeNull()
   })
 
+  it('al terminar el módulo 3 con el kit ya bajado, el aviso lleva a cómo seguir en la computadora', async () => {
+    simularFetch({
+      'POST /api/modulos/3/sesion': json({ id: 5, retomada: false }),
+      'POST /api/sesiones/5/turno': () =>
+        sse([
+          ['texto', { delta: 'Ya quedó instalado.' }],
+          ['avance', { modulo_completado: 3, modulo_actual: 4 }],
+          ['fin', { stop_reason: 'end_turn' }],
+        ]),
+    })
+    abrir({ modulo: 3 })
+    expect(await screen.findByText(/terminaste el módulo 3/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /cómo seguir en tu computadora/i })).toHaveAttribute('href', '/seguir')
+  })
+
+  it('al terminar el módulo 3 sin el kit no manda todavía a los pasos: primero hay que bajarlo', async () => {
+    simularFetch({
+      'POST /api/modulos/3/sesion': json({ id: 5, retomada: false }),
+      'POST /api/sesiones/5/turno': () =>
+        sse([
+          ['texto', { delta: 'Ya quedó instalado.' }],
+          ['avance', { modulo_completado: 3, modulo_actual: 3 }],
+          ['fin', { stop_reason: 'end_turn' }],
+        ]),
+    })
+    abrir({ modulo: 3 })
+    expect(await screen.findByRole('link', { name: /bajar tu kit/i })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /cómo seguir en tu computadora/i })).toBeNull()
+  })
+
   it('avisa cuando se guarda la idea y cuando termina el módulo', async () => {
     simularFetch({
       'POST /api/modulos/2/sesion': json({ id: 5, retomada: false }),
